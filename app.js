@@ -247,6 +247,10 @@ function settingsView(){return heading('CONFIDENTIALITÉ & SAUVEGARDES','Réglag
  <div class="settings-actions">${button('persist-storage','Protéger le stockage local','soft')}</div><p class="section-note" style="margin-top:14px">Le mode persistant peut limiter l’effacement automatique des données, mais ne remplace jamais une sauvegarde externe.</p></section>
  <section class="panel"><div class="panel-header"><h2>Sauvegardes complètes</h2></div><div class="notice">Exportation au format <strong>.vestiaire</strong> : vêtements, photographies, mannequin et looks sauvegardés. Conserve une copie dans Fichiers / iCloud Drive ou sur ton Mac.</div>
  <div class="settings-actions">${button('export-backup','⇩ Exporter une sauvegarde')}${button('import-backup','⇧ Restaurer une sauvegarde','ghost')}</div><p class="section-note" style="margin-top:13px">Dernier export lancé : ${prefs.lastBackupAt?esc(formatDate(prefs.lastBackupAt)):'aucun'}. La copie externe doit être vérifiée dans Fichiers.</p></section>
+ <section class="panel"><div class="panel-header"><h2>Recalage des tenues Fits</h2></div>
+ <p class="muted">Corrige en une fois les anciennes compositions importées : ceintures à la taille, pantalons plus longs, vestes ajustées et couches ordonnées. Les miniatures sont recalculées sur ton appareil.</p>
+ <div class="settings-actions">${button('open-fit-calibration','Recaler mes looks Fits','soft')}${outfits.some(o=>o.calibration?.appliedAt)?button('undo-fits-fit','Annuler les recalages non modifiés','ghost'):''}</div>
+ <p class="section-note">Sauvegarde préalable demandée. Les photos d’origine et anciens aperçus sont conservés pour sécuriser la transition.</p></section>
  <section class="panel"><div class="panel-header"><h2>Importer depuis Fits</h2></div><p class="muted">Transfère un export privé au format JSON contenant tes vêtements et tenues Fits. L'import ajoute uniquement les éléments manquants et ne remplace jamais ton dressing actuel.</p><div class="settings-actions">${button('import-fits','Importer mon fichier Fits','soft')}</div><p class="section-note">Les photos sont récupérées directement sur l'iPhone depuis les liens Fits quand c'est possible ; aucune fiche n'est envoyée à GitHub ou Cloudflare.</p></section>
  <section class="panel"><div class="panel-header"><h2>À venir · NEXUS LINK</h2></div><p class="muted">La V1.2 pourra associer les tenues à l’agenda NEXUS, puis proposer des looks selon « Restaurant », « Travail », « Soirée » et les autres occasions autorisées.</p>
  <div class="notice" style="margin-top:17px">Aucune synchronisation distante n’est activée dans ce prototype. Les photos ne sont pas envoyées sur GitHub ou Cloudflare.</div>
@@ -279,7 +283,7 @@ async function saveGarment(form){
   const file=values.get('photo');let imageId=old?.imageId||null;
   if(file&&file.size)imageId=await storeImage(file);
   if(!imageId)throw Error('Choisis une photo de vêtement');
-  const g={...(old||{}),id:old?.id||uid(),name,category,imageId,color:clean(values.get('color'),80),material:clean(values.get('material'),80),fit:clean(values.get('fit'),80),brand:clean(values.get('brand'),80),size:clean(values.get('size'),40),availability:AVAILABILITY.some(x=>x[0]===values.get('availability'))?values.get('availability'):'available',style:STYLES.includes(values.get('style'))?values.get('style'):'Autre',notes:clean(values.get('notes'),400),occasions:sanitizeList(values.getAll('occasion'),OCCASIONS),seasons:sanitizeList(values.getAll('season'),SEASONS),createdAt:old?.createdAt||dateNow(),updatedAt:dateNow()};
+  const g={...(old||{}),originalImageId:file?.size?null:old?.originalImageId||null,id:old?.id||uid(),name,category,imageId,color:clean(values.get('color'),80),material:clean(values.get('material'),80),fit:clean(values.get('fit'),80),brand:clean(values.get('brand'),80),size:clean(values.get('size'),40),availability:AVAILABILITY.some(x=>x[0]===values.get('availability'))?values.get('availability'):'available',style:STYLES.includes(values.get('style'))?values.get('style'):'Autre',notes:clean(values.get('notes'),400),occasions:sanitizeList(values.getAll('occasion'),OCCASIONS),seasons:sanitizeList(values.getAll('season'),SEASONS),createdAt:old?.createdAt||dateNow(),updatedAt:dateNow()};
   await save('garments',g);await reload();await pruneMedia();closeModal();render();toast(old?'Vêtement modifié.':'Pièce ajoutée au dressing.');
  }finally{working=false}
 }
@@ -442,6 +446,8 @@ function validateBackupState(s,blobIds){
   for(const [slot,item] of Object.entries(o.layers)){
    if(!slotOfKey(slot)||item===null)continue;
    if(!item||!validId(item.garmentId)||!garmentIds.has(item.garmentId)||
+       (item.opacity!=null&&(!Number.isFinite(item.opacity)||item.opacity<.2||item.opacity>1))||
+       (item.zOrder!=null&&(!Number.isFinite(item.zOrder)||item.zOrder< -500||item.zOrder>500))||
       !Number.isFinite(item.x)||item.x<0||item.x>100||!Number.isFinite(item.y)||item.y<0||item.y>100||
       !Number.isFinite(item.scale)||item.scale<.45||item.scale>1.9)throw Error('Position de tenue invalide');
   }
@@ -522,8 +528,8 @@ document.addEventListener('click',async e=>{
   else if(action==='center-piece'&&draft[activeLayerKey]){const g=garments.find(x=>x.id===draft[activeLayerKey].garmentId),p=layoutFor(g);draft[activeLayerKey].x=p.x;draft[activeLayerKey].y=p.y;render()}
   else if(action==='auto-fit-piece'&&draft[activeLayerKey]){const g=garments.find(x=>x.id===draft[activeLayerKey].garmentId),p=layoutFor(g);Object.assign(draft[activeLayerKey],{x:p.x,y:p.y,scale:1,zAdjust:0,opacity:1});render();toast('Pièce recalée : '+p.label)}
   else if(action==='auto-fit-look'){draft=FIT.calibrate(draft,id=>garments.find(x=>x.id===id));activeLayerKey=layerKeys(studioSlot)[0]||studioSlot;render();toast('Tenue recalée : enregistre-la pour conserver les changements.')}
-  else if(action==='front-piece'&&draft[activeLayerKey]){draft[activeLayerKey].zAdjust=clamp((draft[activeLayerKey].zAdjust||0)+5,-12,12);render()}
-  else if(action==='back-piece'&&draft[activeLayerKey]){draft[activeLayerKey].zAdjust=clamp((draft[activeLayerKey].zAdjust||0)-5,-12,12);render()}
+  else if(action==='front-piece'&&draft[activeLayerKey]){const top=Math.max(0,...orderedEntries().map(([key,item])=>FIT.order(key,garments.find(g=>g.id===item.garmentId),item)));draft[activeLayerKey].zOrder=clamp(Math.ceil(top)+1,-500,500);render()}
+  else if(action==='back-piece'&&draft[activeLayerKey]){const bottom=Math.min(0,...orderedEntries().map(([key,item])=>FIT.order(key,garments.find(g=>g.id===item.garmentId),item)));draft[activeLayerKey].zOrder=clamp(Math.floor(bottom)-1,-500,500);render()}
   else if(action==='upload-mannequin')$('mannequin-file').click();
   else if(action==='remove-mannequin'){prefs.mannequinId=null;await save('prefs',prefs);await pruneMedia();render();toast('Silhouette provisoire rétablie.')}
   else if(action==='persist-storage')await persistStorage();
