@@ -46,18 +46,25 @@
   }
   return (!directBlocked?await normal():null)||await proxy();
  }
- async function thumbnail(layers,imageById,lookup){
+ async function thumbnail(layers,imageById,lookup,mode=null,mannequinBlob=null){
   const canvas=document.createElement('canvas');canvas.width=420;canvas.height=525;
   const c=canvas.getContext('2d');c.fillStyle='#f1f2ed';c.fillRect(0,0,420,525);
-  c.fillStyle='#b7c1b3';c.beginPath();c.ellipse(210,70,27,36,0,0,Math.PI*2);c.fill();
-  c.fillRect(174,121,72,205);c.fillRect(177,327,26,155);c.fillRect(216,327,26,155);
+  if(mode===FIT.REFERENCE_MODE&&mannequinBlob){
+   const mu=URL.createObjectURL(mannequinBlob);
+   try{const img=new Image();img.src=mu;await img.decode();const ratio=Math.min(420/img.naturalWidth,525/img.naturalHeight),dw=img.naturalWidth*ratio,dh=img.naturalHeight*ratio;
+    c.drawImage(img,(420-dw)/2,(525-dh)/2,dw,dh);
+   }finally{URL.revokeObjectURL(mu)}
+  }else{
+   c.fillStyle='#b7c1b3';c.beginPath();c.ellipse(210,70,27,36,0,0,Math.PI*2);c.fill();
+   c.fillRect(174,121,72,205);c.fillRect(177,327,26,155);c.fillRect(216,327,26,155);
+  }
   const ordered=FIT.sorted(layers,lookup);
   for(const [key,v] of ordered){
    const g=lookup(v.garmentId),p=FIT.profile(g),blob=imageById.get(v.garmentId);
    if(!blob)continue;const u=URL.createObjectURL(blob);
    try{
     const im=new Image();im.src=u;await im.decode();
-    const w=420*p.w/100*v.scale,h=525*p.h/100*v.scale,ratio=Math.min(w/im.naturalWidth,h/im.naturalHeight);
+    const spec=FIT.profile(g,mode),w=420*spec.w/100*v.scale,h=525*spec.h/100*v.scale,ratio=Math.min(w/im.naturalWidth,h/im.naturalHeight);
     const dw=im.naturalWidth*ratio,dh=im.naturalHeight*ratio;
     c.save();c.globalAlpha=Math.max(.2,Math.min(1,v.opacity??1));c.drawImage(im,420*v.x/100-dw/2,525*v.y/100-dh/2,dw,dh);c.restore();
    }catch{}finally{URL.revokeObjectURL(u)}
@@ -69,7 +76,7 @@
  document.getElementById('modal-root').innerHTML=html;stats={pieceDup,lookDup,links};phase='preview'}
  async function preview(file){if(phase==='running')return;if(!file)return;try{if(file.size>20_000_000)throw Error('Fichier trop volumineux (max. 20 Mo).');const data=valid(JSON.parse(await file.text()));const db=await openDB();let existing;try{const [garments,outfits]=await Promise.all([read(db,'garments'),read(db,'outfits')]);existing={pieces:new Set(garments.map(g=>g.source?.app==='fits'?g.source.id:null)),outfits:new Set(outfits.map(o=>o.source?.app==='fits'?o.source.id:null))}}finally{db.close()}parsed=data;makeModal(data,existing)}catch(e){alert('Import Fits : '+(e.message||e))}}
  async function run(){if(phase!=='preview'||!parsed)return;if(!document.getElementById('fits-backup-confirmed')?.checked){show('Avant de continuer : Réglages → Exporter une sauvegarde VESTIAIRE, puis coche la confirmation ci-dessus.');return}phase='running';const confirmButton=document.querySelector('[data-fits-act="confirm"]');if(confirmButton)confirmButton.disabled=true;
- let db;try{db=await openDB();const [existingGarments,existingOutfits,existingMedia]=await Promise.all([read(db,'garments'),read(db,'outfits'),read(db,'media')]);const oldPieces=new Map(existingGarments.filter(x=>x.source?.app==='fits').map(x=>[x.source.id,x])),oldLooks=new Set(existingOutfits.filter(x=>x.source?.app==='fits').map(x=>x.source.id));
+ let db;try{db=await openDB();const [existingGarments,existingOutfits,existingMedia,existingPrefs]=await Promise.all([read(db,'garments'),read(db,'outfits'),read(db,'media'),read(db,'prefs')]);const settings=existingPrefs.find(x=>x.id==='main')||{};const mode=settings.mannequinId&&settings.mannequinProfile===FIT.REFERENCE_MODE?FIT.REFERENCE_MODE:null;const mannequinBlob=existingMedia.find(m=>m.id===settings.mannequinId)?.blob||null;const oldPieces=new Map(existingGarments.filter(x=>x.source?.app==='fits').map(x=>[x.source.id,x])),oldLooks=new Set(existingOutfits.filter(x=>x.source?.app==='fits').map(x=>x.source.id));
  const missing=parsed.pieces.filter(x=>!oldPieces.has(x.pieceId));const additions={garments:[],outfits:[],media:[]},imageById=new Map();const blobCache=new Map(existingMedia.map(x=>[x.id,x.blob]));for(const g of existingGarments)if(g.source?.app==='fits'&&blobCache.has(g.imageId))imageById.set(g.id,blobCache.get(g.imageId));const map=new Map(oldPieces.size?[...oldPieces].map(([k,v])=>[k,v.id]):[]);
  let ok=0,skipped=0,unavailable=0,connectionBlocked=false,failures=0;const useImages=!!document.getElementById('fits-download-images')?.checked;
  for(let i=0;i<missing.length;i++){const p=missing[i];show('Préparation des photos '+(i+1)+'/'+missing.length+'…');
@@ -78,9 +85,9 @@
  const row={id,name:caption(p),category:SLOT[p.slot],imageId,color:one(p.colors||[],COLOR).join(', ').slice(0,80),material:one(p.materials||[],MATERIAL).join(', ').slice(0,80),fit:clean(p.fit||'',80),brand:clean(p.brand||'',80),size:'',availability:'available',style:'Autre',notes:clean(p.description||'',400),occasions:[],seasons:[...new Set(one(p.seasons||[],SEASONS))],source:{app:'fits',id:p.pieceId},fits:{category:p.category,slot:p.slot,colors:p.colors||[],materials:p.materials||[],seasons:p.seasons||[],price:money(p.price),warmth:p.warmth,formality:p.formality,wornCount:p.wornCount||0,addedOn:p.addedOn,listIds:p.listIds||[],imageStatus:wasDownloaded?'downloaded':'placeholder'},createdAt:stamp(p.addedOn),updatedAt:new Date().toISOString()};additions.garments.push(row)}
  const lookup=id=>additions.garments.find(g=>g.id===id)||existingGarments.find(g=>g.id===id);
  const sorted=[...parsed.outfits].filter(o=>!oldLooks.has(o.outfitId));
- for(let i=0;i<sorted.length;i++){const fit=sorted[i];show('Composition des tenues '+(i+1)+'/'+sorted.length+'…');const layers={top:null,bottom:null,outerwear:null,footwear:null,accessory:null},counts={};for(const part of fit.pieces){const g=parsed.pieces.find(p=>p.pieceId===part.pieceId);if(!g||!map.has(part.pieceId))continue;const slot=SLOT[g.slot],n=(counts[slot]||0)+1;counts[slot]=n;if(n>8)throw Error('Trop de couches dans une tenue Fits.');const key=n===1?slot:slot+'__'+n;const pos=FIT.profile(lookup(map.get(part.pieceId)));layers[key]={garmentId:map.get(part.pieceId),x:pos.x,y:pos.y,scale:1}}
- const corrected=FIT.calibrate(layers,lookup);const tn=await thumbnail(corrected,imageById,lookup),thumbnailId=uuid();additions.media.push({id:thumbnailId,blob:tn,size:tn.size,type:tn.type,createdAt:new Date().toISOString()});
- const oc=one(fit.occasions||[],OCCASION),first=oc[0]||'Libre';additions.outfits.push({id:uuid(),name:clean(fit.name||('Tenue Fits '+String(i+1).padStart(2,'0'))),occasion:first,style:'Autre',notes:clean((fit.tags||[]).join(' · '),400),layers:corrected,thumbnailId,source:{app:'fits',id:fit.outfitId},fits:{occasions:fit.occasions||[],tags:fit.tags||[],lastWorn:fit.lastWorn||null,createdOn:fit.createdOn||null},createdAt:stamp(fit.createdOn),updatedAt:new Date().toISOString()})}
+ for(let i=0;i<sorted.length;i++){const fit=sorted[i];show('Composition des tenues '+(i+1)+'/'+sorted.length+'…');const layers={top:null,bottom:null,outerwear:null,footwear:null,accessory:null},counts={};for(const part of fit.pieces){const g=parsed.pieces.find(p=>p.pieceId===part.pieceId);if(!g||!map.has(part.pieceId))continue;const slot=SLOT[g.slot],n=(counts[slot]||0)+1;counts[slot]=n;if(n>8)throw Error('Trop de couches dans une tenue Fits.');const key=n===1?slot:slot+'__'+n;const pos=FIT.profile(lookup(map.get(part.pieceId)),mode);layers[key]={garmentId:map.get(part.pieceId),x:pos.x,y:pos.y,scale:1}}
+ const corrected=FIT.calibrate(layers,lookup,mode);const tn=await thumbnail(corrected,imageById,lookup,mode,mannequinBlob),thumbnailId=uuid();additions.media.push({id:thumbnailId,blob:tn,size:tn.size,type:tn.type,createdAt:new Date().toISOString()});
+ const oc=one(fit.occasions||[],OCCASION),first=oc[0]||'Libre';additions.outfits.push({id:uuid(),name:clean(fit.name||('Tenue Fits '+String(i+1).padStart(2,'0'))),occasion:first,style:'Autre',notes:clean((fit.tags||[]).join(' · '),400),layers:corrected,thumbnailId,source:{app:'fits',id:fit.outfitId},calibration:mode?{version:mode,appliedAt:new Date().toISOString(),previousLayers:structuredClone(corrected),previousThumbnailId:thumbnailId}:null,fits:{occasions:fit.occasions||[],tags:fit.tags||[],lastWorn:fit.lastWorn||null,createdOn:fit.createdOn||null},createdAt:stamp(fit.createdOn),updatedAt:new Date().toISOString()})}
  show('Enregistrement atomique…');await txWrite(db,additions);
  phase='done';show('Import réussi : '+additions.garments.length+' vêtements, '+additions.outfits.length+' tenues ; '+ok+' photos téléchargées, '+skipped+' visuels à remplacer.');const f=document.querySelector('[data-fits-act="confirm"]');if(f){f.textContent='Ouvrir le dressing';f.disabled=false;f.dataset.fitsAct='reload'}
  }catch(e){phase='preview';show('Aucun changement enregistré. Erreur : '+(e.message||e));const f=document.querySelector('[data-fits-act="confirm"]');if(f)f.disabled=false}finally{db?.close()}}
