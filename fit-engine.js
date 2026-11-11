@@ -82,7 +82,7 @@
    for(const [i,{garment,item}] of items.entries()){
     const p=profile(garment),key=i===0?slot:slot+'__'+(i+1);
     if(i>=8)throw Error('Maximum huit couches par zone');
-    fresh[key]={...item,x:p.x,y:p.y,scale:1,zAdjust:0};
+    const {zOrder,...cleanItem}=item;fresh[key]={...cleanItem,x:p.x,y:p.y,scale:1};
    }
   }
   return fresh;
