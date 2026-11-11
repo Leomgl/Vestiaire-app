@@ -60,7 +60,7 @@
   }
   const ordered=FIT.sorted(layers,lookup);
   for(const [key,v] of ordered){
-   const g=lookup(v.garmentId),p=FIT.profile(g),blob=imageById.get(v.garmentId);
+   const g=lookup(v.garmentId),blob=imageById.get(v.garmentId);
    if(!blob)continue;const u=URL.createObjectURL(blob);
    try{
     const im=new Image();im.src=u;await im.decode();
