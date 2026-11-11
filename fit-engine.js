@@ -56,7 +56,7 @@
   }
   if(slot==='top'){
     if(word('cardigan','gilet'))return'cardigan';
-    if(word('hoodie','sweatshirt','sweat','sweater à capuche'))return'hoodie';
+    if(word('hoodie','sweatshirt','à capuche')||cat==='sweat'||/^sweat(?:\s|$)/.test(name))return'hoodie';
     if(word('pull','sweater','knit','maille','tricot'))return'sweater';
     if(word('tshirt','t-shirt','tee'))return'tshirt';
     if(word('shirt','chemise','surchemise'))return'shirt';
