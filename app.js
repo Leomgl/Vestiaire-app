@@ -1,5 +1,5 @@
 'use strict';
-/* VESTIAIRE v0.5 — user-owned mannequin geometry / aligned studio & previews. */
+/* VESTIAIRE v0.6 — local wardrobe + opt-in NEXUS outfit suggestions. */
 (()=>{
 const DB_NAME='vestiaire-local-v1',DB_VERSION=2;
 const STORES=['garments','outfits','media','prefs','plans'];
@@ -57,6 +57,12 @@ async function init(){
   db=await openDb();await reload();
   if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1'))navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('SW',e));
   render();
+  const lookId=new URL(location.href).searchParams.get('look');
+  if(lookId&&lookId.length<=100&&outfits.some(x=>x.id===lookId)){
+   const cleanURL=new URL(location.href);cleanURL.searchParams.delete('look');
+   history.replaceState(null,'',cleanURL.pathname+cleanURL.search+cleanURL.hash);
+   editLook(lookId);
+  }
  }catch(e){$('view-root').innerHTML=`<div class="empty"><h3>Stockage indisponible</h3><p>${esc(e.message)}. Ouvre cette application depuis une origine HTTPS (pas en mode privé), puis réessaie.</p></div>`}
 }
 async function reload(){
@@ -66,6 +72,7 @@ async function reload(){
  plans=pls.sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.createdAt).localeCompare(String(b.createdAt)));
  media=new Map(ms.map(x=>[x.id,x]));prefs=ps.find(x=>x.id==='main')||{id:'main',mannequinId:null,lastBackupAt:null};
  clearURLs();
+ window.VestiaireNexus?.schedule?.();
 }
 async function storeImage(file,max=1100){
  if(!file||!(file instanceof Blob)||!String(file.type).startsWith('image/'))throw Error('Choisis une image JPG, PNG, WebP ou HEIC compatible.');
@@ -254,7 +261,8 @@ function settingsView(){return heading('CONFIDENTIALITÉ & SAUVEGARDES','Réglag
  <div class="settings-actions">${button('open-fit-calibration','Recaler mes looks Fits','soft')}${outfits.some(o=>o.calibration?.appliedAt)?button('undo-fits-fit','Annuler les recalages non modifiés','ghost'):''}</div>
  <p class="section-note">Sauvegarde préalable demandée. Les photos d’origine et anciens aperçus sont conservés pour sécuriser la transition.</p></section>
  <section class="panel"><div class="panel-header"><h2>Importer depuis Fits</h2></div><p class="muted">Transfère un export privé au format JSON contenant tes vêtements et tenues Fits. L'import ajoute uniquement les éléments manquants et ne remplace jamais ton dressing actuel.</p><div class="settings-actions">${button('import-fits','Importer mon fichier Fits','soft')}</div><p class="section-note">Les photos sont récupérées directement sur l'iPhone depuis les liens Fits quand c'est possible ; aucune fiche n'est envoyée à GitHub ou Cloudflare.</p></section>
- <section class="panel"><div class="panel-header"><h2>À venir · NEXUS LINK</h2></div><p class="muted">La V1.2 pourra associer les tenues à l’agenda NEXUS, puis proposer des looks selon « Restaurant », « Travail », « Soirée » et les autres occasions autorisées.</p>
+ ${window.VestiaireNexus?.settingsCard?.()||'<section class="panel"><div class="panel-header"><h2>NEXUS LINK</h2></div><p>Connexion en chargement…</p></section>'}
+ <section class="panel"><div class="panel-header"><h2>Confidentialité NEXUS LINK</h2></div><p class="muted">Partage uniquement des résumés de tenues chiffrés, après autorisation. Aucun mannequin, photo, vêtement détaillé ou événement NEXUS reçu.</p>
  <div class="notice" style="margin-top:17px">Aucune synchronisation distante n’est activée dans ce prototype. Les photos ne sont pas envoyées sur GitHub ou Cloudflare.</div>
  <div class="settings-actions">${button('clear-data','Effacer toutes les données','danger')}</div></section></div>`}
 function modal(title,content){$('modal-root').innerHTML=`<div class="modal-backdrop" data-close="outside"><div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header><h2>${esc(title)}</h2><button type="button" class="modal-close" data-act="close-modal" aria-label="Fermer">×</button></header>${content}</div></div>`}
@@ -519,6 +527,7 @@ document.addEventListener('click',async e=>{
   const selectedLayer=e.target.closest('[data-layer]');if(selectedLayer){activeLayerKey=selectedLayer.dataset.layer;render();return}
    const pick=e.target.closest('[data-pick]');if(pick){place(studioSlot,pick.dataset.pick);return}
   const target=e.target.closest('[data-act]');if(!target)return;const action=target.dataset.act;
+  if(action.startsWith('vestiaire-nexus-')){await window.VestiaireNexus?.action?.(action);return;}
   if(action==='close-modal')closeModal();
   else if(action==='open-studio')navigate('studio');
   else if(action==='open-looks')navigate('looks');
@@ -570,6 +579,7 @@ document.addEventListener('input',e=>{
   if(e.target.id==='piece-opacity'&&draft[activeLayerKey]){draft[activeLayerKey].opacity=clamp(Number(e.target.value)/100,.2,1);const layer=document.querySelector(`[data-drag-slot="${activeLayerKey}"]`);if(layer)layer.style.opacity=draft[activeLayerKey].opacity;$('opacity-value').textContent=e.target.value+' %'}
 });
 document.addEventListener('change',e=>{
+ if(e.target?.id==='vestiaire-nexus-auto'){void window.VestiaireNexus?.toggle?.(e.target.checked);return;}
  const fields={'filter-occasion':v=>selectedOccasion=v,'filter-style':v=>selectedStyle=v,'filter-season':v=>selectedSeason=v,'filter-material':v=>selectedMaterial=v,'filter-color':v=>selectedColor=v,'filter-availability':v=>selectedAvailability=v};
  if(fields[e.target.id]){fields[e.target.id](e.target.value);render()}
  if(e.target.id==='suggest-occasion'){suggestOccasion=e.target.value;render()}
@@ -595,6 +605,10 @@ function endDrag(e){if(!dragged||e.pointerId!==dragged.pointerId)return;dragged=
 document.addEventListener('pointerup',endDrag);document.addEventListener('pointercancel',endDrag);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
 window.addEventListener('pagehide',clearURLs);
-Object.assign(window,{VESTIAIRE_DEBUG:{version:'0.5',getState:()=>({garments:structuredClone(garments),outfits:structuredClone(outfits),plans:structuredClone(plans),prefs:structuredClone(prefs)})}});
+Object.assign(window,{VESTIAIRE_LINK_API:{
+ state:()=>({outfits,garments}),getPrefs:()=>prefs,
+ savePrefs:async patch=>{prefs={...prefs,...patch};await save('prefs',prefs);render();},
+ toast,esc,render,navigate,editLook
+},VESTIAIRE_DEBUG:{version:'0.6',getState:()=>({garments:structuredClone(garments),outfits:structuredClone(outfits),plans:structuredClone(plans),prefs:structuredClone(prefs)})}});
 draft=baseDraft();init();
 })();
