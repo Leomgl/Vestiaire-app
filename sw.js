@@ -1,6 +1,6 @@
 'use strict';
-const CACHE='vestiaire-v03.1';
-const ASSETS=['./','./index.html','./styles.css','./v02.css','./app.js','./fits-import.js','./icon.svg','./manifest.webmanifest'];
+const CACHE='vestiaire-v04.0';
+const ASSETS=['./','./index.html','./styles.css','./v02.css','./fit-engine.js','./app.js','./fits-import.js','./icon.svg','./manifest.webmanifest'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
