@@ -35,7 +35,9 @@ function error(err){console.error(err);toast('Erreur : '+(err?.message||'action 
 function openDb(){return new Promise((resolve,reject)=>{
  const r=indexedDB.open(DB_NAME,DB_VERSION);
  r.onupgradeneeded=()=>{const d=r.result;for(const name of STORES)if(!d.objectStoreNames.contains(name))d.createObjectStore(name,{keyPath:'id'})};
- r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error||new Error('IndexedDB indisponible'));
+ r.onblocked=()=>{const root=$('view-root');if(root)root.innerHTML='<div class="empty"><h3>Mise à jour en attente</h3><p>Une ancienne fenêtre VESTIAIRE utilise encore la base locale. Ferme tous les onglets VESTIAIRE, puis rouvre l’application pour terminer la migration sans perdre tes données.</p></div>'};
+ r.onsuccess=()=>{const opened=r.result;opened.onversionchange=()=>{opened.close();toast('VESTIAIRE a été mis à jour : ferme et rouvre l’application.')};resolve(opened)};
+ r.onerror=()=>reject(r.error||new Error('IndexedDB indisponible'));
 })}
 function transact(names,mode,run){return new Promise((resolve,reject)=>{
  const tx=db.transaction(names,mode);let output;
