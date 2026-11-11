@@ -1,6 +1,17 @@
-# VESTIAIRE — Prototype V0.2 (11 novembre 2026)
+# VESTIAIRE — Prototype V0.3 (11 novembre 2026)
 
 Application personnelle indépendante (PWA) pour dressing et studio de tenues, construite avec HTML/CSS/JS natifs, sans framework, sans abonnement, sans serveur de stockage et sans compte.
+
+## Nouveautés V0.3 — Import privé Fits
+
+- Studio structuré : plusieurs vêtements par zone avec des couches sélectionnables, ajustables et conservées dans les sauvegardes. Cela permet les superpositions (chemise + pull + veste, etc.).
+- Réglages → **Importer depuis Fits** : lecture d'un export JSON personnel, prévisualisation, détection des doublons et import **additif** (ne supprime aucune donnée déjà enregistrée).
+- Les photos sont demandées par le navigateur à Fits, avec repli possible vers un relais temporaire authentifié. Aucun transfert permanent vers GitHub, R2 ou D1.
+- Les photos indisponibles sont remplacées par un visuel explicitement marqué « PHOTO À AJOUTER » ; les fiches et les tenues restent liées.
+- Import atomique dans IndexedDB ; confirmation d'une sauvegarde VESTIAIRE demandée avant l'opération. Métadonnées d'origine Fits conservées pour permettre de futures évolutions.
+- Export Fits privé : instantané chiffré AES-256-GCM servi temporairement depuis un Worker séparé, avec clé en fragment d'URL uniquement, non stockée dans le Worker. **Aucun export personnel n'est commité dans ce dépôt public.**
+
+**Limites** : les positions exactes de collage Fits ne sont pas fournies par son connecteur ; les tenues sont initialement placées sur les zones du mannequin. Les collections Fits sont présentes dans l'export JSON mais leur interface native VESTIAIRE sera développée ultérieurement. Les téléchargements des photos restent à vérifier sur Safari réel.
 
 ## Nouveautés V0.2
 
