@@ -1,6 +1,16 @@
-# VESTIAIRE — Prototype V0.5 (11 novembre 2026)
+# VESTIAIRE — V0.6 (11 novembre 2026) · NEXUS LINK
 
 Application personnelle indépendante (PWA) pour dressing et studio de tenues, construite avec HTML/CSS/JS natifs, sans framework, sans abonnement, sans serveur de stockage et sans compte.
+
+## V0.6 — NEXUS LINK, tenues contextuelles
+
+Vestiaire devient une spécialisation de NEXUS. Après consentement explicite, Vestiaire envoie vers NEXUS un **catalogue chiffré de résumés de looks** (ID, nom, occasion, style, disponibilité, chaleur) pour que NEXUS recommande une tenue selon son agenda et sa météo. Aucune photo, mannequin, vêtement détaillé ni agenda n'est échangé. Envoi manuel par défaut, option envoi automatique uniquement lorsque Vestiaire est ouverte. Limite de 24 looks envoyés par catalogue.
+
+**Pour connecter :** NEXUS V0.21 → Réglages → Vestiaire → créer la liaison, copier le code privé ; VESTIAIRE → Réglages → NEXUS → coller le code, confirmer et envoyer les tenues. Les looks restent propriétaires de Vestiaire et NEXUS n'écrit pas dans son planning.
+
+Trois Workers Cloudflare mis à jour (NEXUS, relais LINK et diffusion Vestiaire) avec bindings conservés ; pas d'offre payante ni de nouvelle base de données. Tests GitHub automatisés réussis ; **test réel des deux PWA sur iPhone encore requis**.
+
+[Guide complet et notes de reprise V0.6](docs/NEXUS-LINK-V06.md) · [Côté NEXUS V0.21](https://github.com/Leomgl/nexus-app/blob/main/docs/VESTIAIRE-V021.md)
 
 ## V0.5 — Calibration sur le mannequin personnel
 
