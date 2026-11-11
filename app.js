@@ -241,10 +241,10 @@ async function savePlan(form){
 async function deletePlan(id){const p=plans.find(x=>x.id===id);if(!p)return;if(!confirm('Supprimer cette tenue du planning ? La composition enregistrée reste intacte.'))return;
  await remove('plans',id);await reload();closeModal();render();toast('Date retirée du planning.')}
 function settingsView(){return heading('CONFIDENTIALITÉ & SAUVEGARDES','Réglages','Tes photos sont actuellement enregistrées sur cet appareil uniquement. Aucun compte ni transfert vers Cloudflare.')+
- `<div class="settings-grid"><section class="panel"><div class="panel-header"><h2>Ton mannequin</h2></div><p class="muted">Ajoute l’image de référence que tu souhaites retrouver derrière chacune de tes tenues.</p>
+ `<div class="settings-grid"><section class="panel"><div class="panel-header"><h2>Ton mannequin</h2></div><p class="muted">Le profil V0.5 est réglé sur ton mannequin frontal de <strong>1 024 × 1 536 px</strong>. Importe cette même image depuis Photos ou Fichiers pour aligner les vêtements sur sa silhouette. Elle reste privée sur ton appareil.</p>
  <div style="height:150px;max-width:130px;overflow:hidden;background:#f2f3ef;border-radius:12px;display:grid;place-items:center;margin:15px 0">${prefs.mannequinId?`<img src="${urlFor(prefs.mannequinId)}" alt="Mannequin actuel" style="max-width:100%;max-height:100%;object-fit:contain">`:`<span style="color:#a4b5a2;font-size:55px">♙</span>`}</div>
- <div class="settings-actions">${button('upload-mannequin','Importer mon mannequin','soft')}${prefs.mannequinId?button('remove-mannequin','Revenir à la silhouette provisoire','ghost'):''}</div>
- <p class="section-note" style="margin-top:13px">Préférence : PNG transparent ou WebP, image verticale de face.</p></section>
+ <div class="settings-actions">${button('upload-mannequin',prefs.mannequinId?'Remplacer le mannequin':'Importer mon mannequin','soft')}${prefs.mannequinId?button(referenceEnabled()?'disable-reference-calibration':'enable-reference-calibration',referenceEnabled()?'Désactiver les repères photo':'Utiliser les repères de référence','ghost'):''}${prefs.mannequinId?button('remove-mannequin','Silhouette provisoire','ghost'):''}</div>
+ <p class="section-note" style="margin-top:13px">${referenceEnabled()?'Calibration photo V0.5 active — mêmes repères dans le Studio et les miniatures.':prefs.mannequinId?'Image personnelle chargée. Active les repères de référence si c’est bien le mannequin partagé.':'La photo ne fait pas partie du code public : charge-la ici pour voir tes compositions sur ton mannequin.'}</p></section>
  <section class="panel"><div class="panel-header"><h2>Stockage local</h2></div><div id="storage-status" class="notice">Analyse de l’espace disponible…</div>
  <div class="settings-actions">${button('persist-storage','Protéger le stockage local','soft')}</div><p class="section-note" style="margin-top:14px">Le mode persistant peut limiter l’effacement automatique des données, mais ne remplace jamais une sauvegarde externe.</p></section>
  <section class="panel"><div class="panel-header"><h2>Sauvegardes complètes</h2></div><div class="notice">Exportation au format <strong>.vestiaire</strong> : vêtements, photographies, mannequin et looks sauvegardés. Conserve une copie dans Fichiers / iCloud Drive ou sur ton Mac.</div>
@@ -352,7 +352,7 @@ function recalibrationDialog(){
  if(!referenceEnabled()){toast('Importe puis active le mannequin de référence dans Réglages.');navigate('settings');return}
  const eligible=outfits.filter(o=>o.source?.app==='fits'&&o.calibration?.version!==FIT.REFERENCE_MODE);
  if(!eligible.length){toast('Toutes les tenues Fits utilisent déjà les repères du mannequin.');return}
- modal('Recaler les tenues Fits',`<div class="recalibrate-help"><p>La nouvelle géométrie corrige tailles, placements et couches. Les miniatures seront régénérées, avec détourage des marges transparentes lorsque possible.</p><strong>${eligible.length} tenues Fits concernées</strong><p>Les tenues créées manuellement ne seront pas modifiées. Un retour aux placements précédents est prévu tant que tu n'as pas édité chaque tenue depuis.</p></div><label class="field"><span><input type="checkbox" id="fit-backup-ok"> J'ai enregistré une sauvegarde .vestiaire dans Fichiers</span></label><p id="fit-progress" class="section-note" aria-live="polite">Aucune modification pour l'instant.</p><div class="form-footer">${button('close-modal','Annuler','ghost')}${button('apply-fits-fit','Recaler et actualiser les aperçus')}</div>`);
+ modal('Recaler les tenues Fits',`<div class="recalibrate-help"><p>Les repères de ton mannequin photo (épaules, taille, hanches, jambes et pieds) seront appliqués aux compositions existantes. Les miniatures seront régénérées, avec détourage des marges transparentes lorsque possible.</p><strong>${eligible.length} tenues Fits concernées</strong><p>Les tenues créées manuellement ne seront pas modifiées. Un retour aux placements précédents est prévu tant que tu n'as pas édité chaque tenue depuis.</p></div><label class="field"><span><input type="checkbox" id="fit-backup-ok"> J'ai enregistré une sauvegarde .vestiaire dans Fichiers</span></label><p id="fit-progress" class="section-note" aria-live="polite">Aucune modification pour l'instant.</p><div class="form-footer">${button('close-modal','Annuler','ghost')}${button('apply-fits-fit','Recaler et actualiser les aperçus')}</div>`);
 }
 async function recalibrateFits(){
  if(working)return;
@@ -417,7 +417,17 @@ async function saveLook(form){if(working)return;working=true;try{const v=new For
  }finally{working=false}}
 async function storeThumbnail(blob){const r={id:uid(),blob,size:blob.size,type:blob.type,createdAt:dateNow()};await save('media',r);media.set(r.id,r);return r.id}
 async function deleteLook(){const o=outfits.find(x=>x.id===editingOutfit);if(!o)return;if(!confirm('Supprimer définitivement cette tenue ? Tes vêtements resteront dans le dressing.'))return;await transact(['outfits','plans'],'readwrite',tx=>{tx.objectStore('outfits').delete(o.id);for(const p of plans)if(p.outfitId===o.id)tx.objectStore('plans').delete(p.id)});editingOutfit=null;variationSource=null;draft=baseDraft();await reload();await pruneMedia();closeModal();navigate('looks');toast('Tenue supprimée.')}
-async function importMannequin(file){if(!file?.size)return;const id=await storeImage(file,1600);prefs.mannequinId=id;await save('prefs',prefs);await reload();await pruneMedia();render();toast('Ton mannequin est enregistré. Le Studio l’utilisera automatiquement.')}
+async function importMannequin(file){
+ if(!file?.size)return;
+ const url=URL.createObjectURL(file);let matched=false;
+ try{const img=new Image();img.src=url;await img.decode();matched=FIT.matchesReferenceAspect(img.naturalWidth,img.naturalHeight)}
+ finally{URL.revokeObjectURL(url)}
+ const id=await storeImage(file,1600);
+ prefs.mannequinId=id;
+ prefs.mannequinProfile=matched?FIT.REFERENCE_MODE:null;
+ await save('prefs',prefs);await reload();await pruneMedia();render();
+ toast(matched?'Mannequin importé : repères photo V0.5 activés. Tu peux maintenant recaler tes tenues.':'Mannequin importé. Active les repères de référence dans Réglages si c’est le portrait prévu.');
+}
 async function persistStorage(){const p=await navigator.storage?.persist?.();toast(p?'Stockage persistant accepté par le navigateur.':'Persistance non confirmée. Fais régulièrement des sauvegardes.') ;refreshStorageStatus()}
 async function refreshStorageStatus(){const box=$('storage-status');if(!box)return;try{const info=await navigator.storage?.estimate?.(),persistent=await navigator.storage?.persisted?.();if(!box.isConnected)return;
  const bytes=info?.usage||0,quota=info?.quota||0;box.innerHTML=`<strong>Stockage utilisé : ${prettyBytes(bytes)}</strong><div>Capacité estimée : ${quota?prettyBytes(quota):'indéterminée'}</div><div>Mode persistant : ${persistent?'activé':'non confirmé'}</div><div>${garments.length} pièces · ${outfits.length} tenues · ${media.size} images optimisées</div>`;
@@ -539,7 +549,9 @@ document.addEventListener('click',async e=>{
   else if(action==='front-piece'&&draft[activeLayerKey]){const top=Math.max(0,...orderedEntries().map(([key,item])=>FIT.order(key,garments.find(g=>g.id===item.garmentId),item)));draft[activeLayerKey].zOrder=clamp(Math.ceil(top)+1,-500,500);render()}
   else if(action==='back-piece'&&draft[activeLayerKey]){const bottom=Math.min(...orderedEntries().map(([key,item])=>FIT.order(key,garments.find(g=>g.id===item.garmentId),item)));draft[activeLayerKey].zOrder=clamp(Math.floor(bottom)-1,10,500);render()}
   else if(action==='upload-mannequin')$('mannequin-file').click();
-  else if(action==='remove-mannequin'){prefs.mannequinId=null;await save('prefs',prefs);await pruneMedia();render();toast('Silhouette provisoire rétablie.')}
+  else if(action==='enable-reference-calibration'&&prefs.mannequinId){prefs.mannequinProfile=FIT.REFERENCE_MODE;await save('prefs',prefs);await reload();render();toast('Calibration sur ton mannequin activée.')}
+  else if(action==='disable-reference-calibration'){prefs.mannequinProfile=null;await save('prefs',prefs);await reload();render();toast('Repères photo désactivés. Tes tenues sont inchangées.')}
+  else if(action==='remove-mannequin'){prefs.mannequinId=null;prefs.mannequinProfile=null;await save('prefs',prefs);await pruneMedia();render();toast('Silhouette provisoire rétablie.')}
   else if(action==='persist-storage')await persistStorage();
   else if(action==='export-backup')await exportBackup();
   else if(action==='import-backup')$('restore-file').click();
