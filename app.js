@@ -1,8 +1,8 @@
 'use strict';
 /* VESTIAIRE v0.2 — local-first, no remote uploads, no tracking, no account. */
 (()=>{
-const DB_NAME='vestiaire-local-v1',DB_VERSION=1;
-const STORES=['garments','outfits','media','prefs'];
+const DB_NAME='vestiaire-local-v1',DB_VERSION=2;
+const STORES=['garments','outfits','media','prefs','plans'];
 const OCCASIONS=['Travail','Restaurant','Soirée','Casual','Sport','Voyage','Événement'];
 const STYLES=['Old money','Smart casual','Streetwear','Classique','Minimaliste','Sport','Autre'];
 const SEASONS=['Printemps','Été','Automne','Hiver','Toute l’année'];
@@ -26,8 +26,8 @@ const sanitizeList=(items,allowed)=>[...new Set((Array.isArray(items)?items:[]).
 const dateNow=()=>new Date().toISOString();
 const formatDate=d=>d?new Intl.DateTimeFormat('fr-FR',{dateStyle:'medium'}).format(new Date(d)):'';
 const now=new Date();
-let db=null,view='home',garments=[],outfits=[],prefs={id:'main',mannequinId:null,lastBackupAt:null},media=new Map(),imageURLs=new Map();
-let selectedCategory='all',query='',selectedOccasion='all',selectedStyle='all',selectedSeason='all',selectedMaterial='all',selectedColor='all',selectedAvailability='all',studioSlot='top',draft={},editingOutfit=null,variationSource=null,working=false;
+let db=null,view='home',garments=[],outfits=[],plans=[],prefs={id:'main',mannequinId:null,lastBackupAt:null},media=new Map(),imageURLs=new Map();
+let selectedCategory='all',query='',selectedOccasion='all',selectedStyle='all',selectedSeason='all',selectedMaterial='all',selectedColor='all',selectedAvailability='all',suggestOccasion='Restaurant',studioSlot='top',draft={},editingOutfit=null,variationSource=null,working=false;
 let dragged=null;
 
 function toast(message){const target=$('toast');target.textContent=message;target.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>target.classList.remove('show'),3600)}
@@ -55,9 +55,10 @@ async function init(){
  }catch(e){$('view-root').innerHTML=`<div class="empty"><h3>Stockage indisponible</h3><p>${esc(e.message)}. Ouvre cette application depuis une origine HTTPS (pas en mode privé), puis réessaie.</p></div>`}
 }
 async function reload(){
- const [gs,os,ms,ps]=await Promise.all(STORES.map(readAll));
+ const [gs,os,ms,ps,pls]=await Promise.all(STORES.map(readAll));
  garments=gs.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
  outfits=os.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
+ plans=pls.sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.createdAt).localeCompare(String(b.createdAt)));
  media=new Map(ms.map(x=>[x.id,x]));prefs=ps.find(x=>x.id==='main')||{id:'main',mannequinId:null,lastBackupAt:null};
  clearURLs();
 }
@@ -76,18 +77,18 @@ async function storeImage(file,max=1100){
  }finally{URL.revokeObjectURL(url)}
 }
 function render(){
- const labels={home:'TABLEAU DE BORD',wardrobe:'MON DRESSING',studio:'STUDIO DE TENUES',looks:'MES TENUES',settings:'PARAMÈTRES'};
+ const labels={home:'TABLEAU DE BORD',wardrobe:'MON DRESSING',studio:'STUDIO DE TENUES',looks:'MES TENUES',planning:'PLANNING DES TENUES',settings:'PARAMÈTRES'};
  $('header-label').textContent=labels[view];
  document.querySelectorAll('[data-nav]').forEach(btn=>{btn.classList.toggle('active',btn.dataset.nav===view);btn.setAttribute('aria-current',btn.dataset.nav===view?'page':'false')});
- const routes={home:homeView,wardrobe:wardrobeView,studio:studioView,looks:looksView,settings:settingsView};
+ const routes={home:homeView,wardrobe:wardrobeView,studio:studioView,looks:looksView,planning:planningView,settings:settingsView};
  $('view-root').innerHTML=routes[view]();
  if(view==='settings')refreshStorageStatus();
 }
-function navigate(target){if(!['home','wardrobe','studio','looks','settings'].includes(target))return;view=target;render();window.scrollTo({top:0,behavior:'instant'})}
+function navigate(target){if(!['home','wardrobe','studio','looks','planning','settings'].includes(target))return;view=target;render();window.scrollTo({top:0,behavior:'instant'})}
 function heading(kicker,title,description,buttons=''){return `<div class="view-header"><div><div class="eyebrow">${esc(kicker)}</div><h1>${esc(title)}</h1><p>${esc(description)}</p></div>${buttons?`<div class="actions">${buttons}</div>`:''}</div>`}
 const button=(act,title,kind='')=>`<button type="button" class="btn ${kind}" data-act="${act}">${title}</button>`;
 function homeView(){
- const recent=outfits[0];
+ const recent=outfits[0],next=plans.find(x=>x.date>=localDate());
  return heading('UN DRESSING À TON IMAGE','Bonjour, bienvenue au Vestiaire.','Ton dressing, tes compositions et tes tenues favorites au même endroit.')+
  `<div class="stat-row"><div class="stat"><strong>${garments.length}</strong><span>Pièces enregistrées</span></div><div class="stat"><strong>${outfits.length}</strong><span>Tenues créées</span></div><div class="stat"><strong>${new Set(garments.flatMap(g=>g.occasions||[])).size}</strong><span>Occasions couvertes</span></div></div>
  <div class="dashboard-grid"><section class="panel"><div class="panel-header"><h2>Ton studio personnel</h2>${button('open-studio','Ouvrir le Studio','small soft')}</div>
@@ -97,6 +98,7 @@ function homeView(){
  <div class="feature-row"><div class="feature-icon">◈</div><div><strong>Mannequin personnel</strong><p>Importe ta propre image de référence.</p></div></div>
  <div class="feature-row"><div class="feature-icon">▦</div><div><strong>Looks sauvegardés</strong><p>Positions, tailles, pièces et miniature.</p></div></div>
  <div class="feature-row"><div class="feature-icon">⇩</div><div><strong>Sauvegarde complète</strong><p>Un fichier exportable, avec toutes tes photos.</p></div></div></div></section></div>
+ ${next?`<section class="home-next-plan"><div class="section-head"><h2>Prochaine tenue prévue</h2>${button('open-planning','Ouvrir le planning','small ghost')}</div>${planCard(next)}</section>`:`<section class="home-next-plan"><div class="section-head"><h2>Préparer les prochains looks</h2>${button('open-planning','Découvrir le planning','small soft')}</div><p class="muted">Planifie une tenue selon la date et l'occasion, puis retrouve-la ici.</p></section>`}
  ${recent?`<section style="margin-top:18px"><div class="section-head"><h2>Dernière tenue</h2>${button('open-looks','Voir les tenues','small ghost')}</div><div class="grid-cards">${outfitCard(recent)}</div></section>`:''}`;
 }
 function photo(id,klass=''){const u=urlFor(id);return u?`<img class="${klass}" src="${u}" alt="" loading="lazy">`:`<span aria-hidden="true">◈</span>`}
@@ -157,10 +159,78 @@ function studioView(){
  </section></div>`;
 }
 function outfitCard(o){const src=urlFor(o.thumbnailId);return `<button class="item-card look-card" data-act="edit-look" data-id="${o.id}"><div class="item-photo ${src?'':'placeholder'}">${src?`<img class="look-preview" src="${src}" alt="Aperçu de la tenue">`:'◈'}<span class="look-overlay">${esc(o.occasion||'Sans occasion')}</span></div><div class="item-info"><strong>${esc(o.name)}</strong><p>${Object.values(o.layers||{}).filter(Boolean).length} pièces · ${esc(o.style||'Style libre')}</p>${o.variantOf?`<span class="tag">Variante${outfits.some(x=>x.id===o.variantOf)?' · '+esc(outfits.find(x=>x.id===o.variantOf).name):''}</span>`:''}</div></button>`}
-function looksView(){const list=outfits.filter(o=>selectedOccasion==='all'||o.occasion===selectedOccasion);return heading('TES COMPOSITIONS','Mes tenues','Retrouve exactement les compositions que tu as enregistrées et réouvre-les dans le Studio.',button('new-look','＋ Créer une tenue'))+
+function looksView(){const list=outfits.filter(o=>selectedOccasion==='all'||o.occasion===selectedOccasion);return heading('TES COMPOSITIONS','Mes tenues','Retrouve exactement les compositions que tu as enregistrées et réouvre-les dans le Studio.',button('open-planning','Mon planning','ghost')+button('new-look','＋ Créer une tenue'))+
  `<div class="toolbar"><select id="filter-occasion" class="select"><option value="all">Toutes les occasions</option>${OCCASIONS.map(x=>`<option ${x===selectedOccasion?'selected':''}>${x}</option>`).join('')}</select></div>`+
  (list.length?`<div class="grid-cards">${list.map(outfitCard).join('')}</div>`:`<div class="empty"><div class="empty-icon">▦</div><h3>${outfits.length?'Aucune tenue pour ce filtre':'Tes futurs looks apparaîtront ici'}</h3><p>Crée ton premier look dans le Studio, puis enregistre-le.</p>${button('open-studio','Ouvrir le Studio')}</div>`);
 }
+const localDate=(d=new Date())=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const validLocalDate=s=>{if(typeof s!=='string'||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(s))return false;const d=new Date(s+'T12:00:00');return !Number.isNaN(+d)&&localDate(d)===s};
+const prettyDate=s=>validLocalDate(s)?new Intl.DateTimeFormat('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date(s+'T12:00:00')):s;
+function unavailableInLook(o){return Object.values(o?.layers||{}).filter(Boolean).map(item=>garments.find(g=>g.id===item.garmentId)).filter(g=>!g||!isAvailable(g))}
+function scoreOutfit(o,occasion){
+ const pieces=Object.values(o.layers||{}).filter(Boolean).map(item=>garments.find(g=>g.id===item.garmentId)).filter(Boolean);
+ let points=o.occasion===occasion?12:0;
+ for(const g of pieces)points+=(g.occasions||[]).includes(occasion)?2:0;
+ points+=Math.min(pieces.length,5);
+ if(!pieces.length)points-=100;
+ points-=unavailableInLook(o).length*35;
+ return points;
+}
+function planCard(p){
+ const o=outfits.find(x=>x.id===p.outfitId),src=o?urlFor(o.thumbnailId):'';
+ const blocked=o?unavailableInLook(o).length:0;
+ return `<article class="plan-card">
+ <div class="plan-image">${src?`<img src="${src}" alt="Aperçu du look">`:'◈'}</div>
+ <div class="plan-details"><div class="eyebrow">${esc(prettyDate(p.date))} · ${esc(p.occasion||'Libre')}</div><strong>${esc(o?.name||'Tenue manquante')}</strong>
+ ${p.notes?`<p>${esc(p.notes)}</p>`:''}
+ ${blocked?`<span class="tag availability-tag">Attention : ${blocked} pièce(s) indisponible(s)</span>`:''}
+ <div class="plan-actions"><button class="btn small soft" data-act="edit-plan" data-id="${p.id}" type="button">Modifier</button>${o?`<button class="btn small ghost" data-act="edit-look" data-id="${o.id}" type="button">Ouvrir le look</button>`:''}</div></div></article>`;
+}
+function suggestionCard(o){
+ const src=urlFor(o.thumbnailId),blocked=unavailableInLook(o).length;
+ return `<article class="suggestion-card"><div class="suggestion-photo">${src?`<img src="${src}" alt="">`:'◈'}</div>
+ <div class="suggestion-info"><strong>${esc(o.name)}</strong><span>${esc(o.occasion||'Libre')} · ${esc(o.style||'Style libre')}</span>
+ ${blocked?`<span class="tag availability-tag">${blocked} pièce(s) indisponible(s)</span>`:''}
+ <button class="btn small ${blocked?'ghost':'soft'}" data-act="suggest-plan" data-id="${o.id}" type="button">Planifier ce look</button></div></article>`;
+}
+function planningView(){
+ const recommendations=outfits.slice().sort((a,b)=>scoreOutfit(b,suggestOccasion)-scoreOutfit(a,suggestOccasion)).slice(0,6);
+ const upcoming=plans.filter(p=>p.date>=localDate()),history=plans.filter(p=>p.date<localDate()).reverse().slice(0,12);
+ return heading('LOOKS · DATES · OCCASIONS','Mon planning','Prépare tes tenues sans calendrier externe. Plus tard, NEXUS pourra proposer des occasions, uniquement avec ton autorisation.',button('add-plan','＋ Prévoir une tenue'))+
+ `<div class="stat-row planner-stats"><div class="stat"><strong>${upcoming.length}</strong><span>Tenues à venir</span></div><div class="stat"><strong>${outfits.length}</strong><span>Looks disponibles</span></div><div class="stat"><strong>${new Set(plans.map(x=>x.date)).size}</strong><span>Jours organisés</span></div></div>
+ <section class="planner-section"><div class="section-head"><h2>Prochaines tenues</h2>${button('add-plan','Ajouter une date','small soft')}</div>
+ ${upcoming.length?`<div class="plans-list">${upcoming.map(planCard).join('')}</div>`:`<div class="empty compact"><h3>Rien de prévu pour le moment</h3><p>Enregistre des looks puis associe-les à une date et une occasion.</p>${button('add-plan','Planifier ma première tenue')}</div>`}</section>
+ <section class="planner-section"><div class="section-head"><h2>Des looks adaptés à ton programme</h2></div>
+ <div class="toolbar"><label class="filter-field"><span>Pour quelle occasion ?</span><select id="suggest-occasion" class="select">${OCCASIONS.map(x=>`<option value="${esc(x)}" ${x===suggestOccasion?'selected':''}>${esc(x)}</option>`).join('')}</select></label></div>
+ <p class="muted planner-explanation">Suggestions locales selon l'occasion et les vêtements disponibles. Aucune donnée n'est envoyée à un service externe.</p>
+ ${recommendations.length?`<div class="suggestions-grid">${recommendations.map(suggestionCard).join('')}</div>`:`<div class="empty compact"><h3>Pas encore de tenue à suggérer</h3><p>Crée quelques looks dans le Studio pour alimenter les suggestions.</p>${button('new-look','Créer une tenue')}</div>`}</section>
+ ${history.length?`<section class="planner-section"><div class="section-head"><h2>Historique récent</h2></div><div class="plans-list">${history.map(planCard).join('')}</div></section>`:''}`;
+}
+function planModal(id=null,preferredOutfitId=null){
+ if(!outfits.length){toast('Enregistre d’abord une tenue dans le Studio.');navigate('studio');return}
+ const p=id?plans.find(x=>x.id===id):null;
+ const first=outfits.find(x=>x.id===preferredOutfitId)||outfits.find(x=>x.id===p?.outfitId)||outfits[0];
+ modal(p?'Modifier la tenue prévue':'Planifier une tenue',`<form id="plan-form"><input type="hidden" name="id" value="${esc(p?.id||'')}">
+ <label class="field"><span>Date</span><input class="input" type="date" name="date" required value="${esc(p?.date||localDate())}"></label>
+ <label class="field"><span>Tenue</span><select class="select" name="outfitId" required>${outfits.map(o=>`<option value="${esc(o.id)}" ${o.id===first.id?'selected':''}>${esc(o.name)}</option>`).join('')}</select></label>
+ <label class="field"><span>Occasion</span><select class="select" name="occasion">${['Libre',...OCCASIONS].map(x=>`<option value="${esc(x)}" ${x===(p?.occasion||((preferredOutfitId&&first.occasion!=='Libre')?first.occasion:suggestOccasion))?'selected':''}>${esc(x)}</option>`).join('')}</select></label>
+ <label class="field"><span>Notes (facultatif)</span><textarea class="textarea" name="notes" rows="3" maxlength="400" placeholder="Dress code, lieu, contexte…">${esc(p?.notes||'')}</textarea></label>
+ <div class="notice">Le planning est local à VESTIAIRE : aucune modification de l'agenda NEXUS à cette étape.</div>
+ <div class="form-footer">${p?button('delete-plan','Supprimer cette date','danger'):''}<button type="submit" class="btn">${p?'Enregistrer les changements':'Planifier la tenue'}</button></div></form>`);
+}
+async function savePlan(form){
+ if(working)return;working=true;
+ try{
+ const v=new FormData(form),date=String(v.get('date')||''),o=outfits.find(x=>x.id===v.get('outfitId'));
+ if(!validLocalDate(date))throw Error('Choisis une date valide.');
+ if(!o)throw Error('Cette tenue n’existe plus.');
+ const old=plans.find(x=>x.id===v.get('id'));
+ const p={id:old?.id||uid(),date,outfitId:o.id,occasion:OCCASIONS.includes(v.get('occasion'))?v.get('occasion'):'Libre',notes:clean(v.get('notes'),400),createdAt:old?.createdAt||dateNow(),updatedAt:dateNow()};
+ await save('plans',p);await reload();closeModal();navigate('planning');toast('Tenue ajoutée à ton planning local.');
+ }finally{working=false}
+}
+async function deletePlan(id){const p=plans.find(x=>x.id===id);if(!p)return;if(!confirm('Supprimer cette tenue du planning ? La composition enregistrée reste intacte.'))return;
+ await remove('plans',id);await reload();closeModal();render();toast('Date retirée du planning.')}
 function settingsView(){return heading('CONFIDENTIALITÉ & SAUVEGARDES','Réglages','Tes photos sont actuellement enregistrées sur cet appareil uniquement. Aucun compte ni transfert vers Cloudflare.')+
  `<div class="settings-grid"><section class="panel"><div class="panel-header"><h2>Ton mannequin</h2></div><p class="muted">Ajoute l’image de référence que tu souhaites retrouver derrière chacune de tes tenues.</p>
  <div style="height:150px;max-width:130px;overflow:hidden;background:#f2f3ef;border-radius:12px;display:grid;place-items:center;margin:15px 0">${prefs.mannequinId?`<img src="${urlFor(prefs.mannequinId)}" alt="Mannequin actuel" style="max-width:100%;max-height:100%;object-fit:contain">`:`<span style="color:#a4b5a2;font-size:55px">♙</span>`}</div>
@@ -242,7 +312,7 @@ async function saveLook(form){if(working)return;working=true;try{const v=new For
  await save('outfits',o);editingOutfit=o.id;variationSource=o.variantOf||null;await reload();await pruneMedia();closeModal();render();toast('Tenue enregistrée avec sa composition et son aperçu.');
  }finally{working=false}}
 async function storeThumbnail(blob){const r={id:uid(),blob,size:blob.size,type:blob.type,createdAt:dateNow()};await save('media',r);media.set(r.id,r);return r.id}
-async function deleteLook(){const o=outfits.find(x=>x.id===editingOutfit);if(!o)return;if(!confirm('Supprimer définitivement cette tenue ? Tes vêtements resteront dans le dressing.'))return;await remove('outfits',o.id);editingOutfit=null;variationSource=null;draft=baseDraft();await reload();await pruneMedia();closeModal();navigate('looks');toast('Tenue supprimée.')}
+async function deleteLook(){const o=outfits.find(x=>x.id===editingOutfit);if(!o)return;if(!confirm('Supprimer définitivement cette tenue ? Tes vêtements resteront dans le dressing.'))return;await transact(['outfits','plans'],'readwrite',tx=>{tx.objectStore('outfits').delete(o.id);for(const p of plans)if(p.outfitId===o.id)tx.objectStore('plans').delete(p.id)});editingOutfit=null;variationSource=null;draft=baseDraft();await reload();await pruneMedia();closeModal();navigate('looks');toast('Tenue supprimée.')}
 async function importMannequin(file){if(!file?.size)return;const id=await storeImage(file,1600);prefs.mannequinId=id;await save('prefs',prefs);await reload();await pruneMedia();render();toast('Ton mannequin est enregistré. Le Studio l’utilisera automatiquement.')}
 async function persistStorage(){const p=await navigator.storage?.persist?.();toast(p?'Stockage persistant accepté par le navigateur.':'Persistance non confirmée. Fais régulièrement des sauvegardes.') ;refreshStorageStatus()}
 async function refreshStorageStatus(){const box=$('storage-status');if(!box)return;try{const info=await navigator.storage?.estimate?.(),persistent=await navigator.storage?.persisted?.();if(!box.isConnected)return;
@@ -253,7 +323,7 @@ const sha=async blob=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',aw
 async function exportBackup(){if(working)return;working=true;toast('Préparation de la sauvegarde complète…');try{
  const records=[...media.values()].sort((a,b)=>a.id.localeCompare(b.id));let payload=[];
  for(const x of records)payload.push({id:x.id,size:x.blob.size,type:x.blob.type,sha256:await sha(x.blob),createdAt:x.createdAt});
- const header={app:'VESTIAIRE',format:1,exportedAt:dateNow(),state:{garments,outfits,prefs},media:payload};
+ const header={app:'VESTIAIRE',format:2,exportedAt:dateNow(),state:{garments,outfits,plans,prefs},media:payload};
  const bytes=new TextEncoder().encode(JSON.stringify(header));if(bytes.length>10_000_000)throw Error('Trop de métadonnées pour le format de sauvegarde.');
  const prefix=new Uint8Array(8);prefix.set([86,83,84,49],0);new DataView(prefix.buffer).setUint32(4,bytes.length,true);
  const file=new Blob([prefix,bytes,...records.map(x=>x.blob)],{type:'application/octet-stream'});
@@ -283,6 +353,7 @@ function validateBackupState(s,blobIds){
   }
  }
  if(!s.prefs||typeof s.prefs!=='object'||s.prefs.mannequinId!=null&&(!validId(s.prefs.mannequinId)||!blobIds.has(s.prefs.mannequinId)))throw Error('Mannequin invalide');
+ if(s.plans!=null){if(!Array.isArray(s.plans))throw Error('Planning invalide');const planIds=new Set();for(const p of s.plans){if(!p||!validId(p.id)||planIds.has(p.id)||!validLocalDate(p.date)||!lookIds.has(p.outfitId)||typeof p.notes!=='string'||p.notes.length>400||!['Libre',...OCCASIONS].includes(p.occasion))throw Error('Événement du planning invalide');planIds.add(p.id)}}
 }
 async function pruneMedia(){
  const wanted=new Set([prefs.mannequinId,...garments.map(x=>x.imageId),...outfits.map(x=>x.thumbnailId)].filter(Boolean));
@@ -294,7 +365,8 @@ async function restoreBackup(file){if(!file)return;if(working)return;working=tru
  if(file.size<8)throw Error('Fichier trop court');const p=new Uint8Array(await file.slice(0,8).arrayBuffer());if(String.fromCharCode(...p.slice(0,4))!=='VST1')throw Error('Ce fichier n’est pas une sauvegarde VESTIAIRE');
  const headerSize=new DataView(p.buffer).getUint32(4,true);if(headerSize>10_000_000||8+headerSize>file.size)throw Error('En-tête de sauvegarde invalide');
  const header=JSON.parse(await file.slice(8,8+headerSize).text());const s=header.state;
- if(header.app!=='VESTIAIRE'||header.format!==1||!s||!Array.isArray(s.garments)||!Array.isArray(s.outfits)||!Array.isArray(header.media)||!s.prefs||s.garments.length>20000||s.outfits.length>50000||header.media.length>100000)throw Error('Structure de sauvegarde incorrecte');
+ if(header.app!=='VESTIAIRE'||![1,2].includes(header.format)||!s||!Array.isArray(s.garments)||!Array.isArray(s.outfits)||!Array.isArray(header.media)||!s.prefs||s.garments.length>20000||s.outfits.length>50000||header.media.length>100000||(header.format===2&&(!Array.isArray(s.plans)||s.plans.length>50000)))throw Error('Structure de sauvegarde incorrecte');
+ if(header.format===1)s.plans=[];
  let offset=8+headerSize;const loaded=[];
  const ids=new Set();for(const x of header.media){if(typeof x.id!=='string'||!x.id||ids.has(x.id)||!Number.isSafeInteger(x.size)||x.size<0||x.size>30_000_000||offset+x.size>file.size||typeof x.sha256!=='string'||!/^[a-f0-9]{64}$/.test(x.sha256))throw Error('Image de sauvegarde incorrecte');
   ids.add(x.id);const blob=file.slice(offset,offset+x.size,x.type||'image/webp');if(await sha(blob)!==x.sha256)throw Error('Intégrité des photos invalide : restauration annulée');
@@ -302,8 +374,8 @@ async function restoreBackup(file){if(!file)return;if(working)return;working=tru
  }
  if(offset!==file.size)throw Error('Sauvegarde tronquée ou contenant des données inattendues');
  validateBackupState(s,ids);
- if(!confirm(`Restaurer ${s.garments.length} vêtements et ${s.outfits.length} tenues ? Toutes les données actuelles seront remplacées.`))return;
- await transact(STORES,'readwrite',tx=>{for(const name of STORES)tx.objectStore(name).clear();for(const g of s.garments)tx.objectStore('garments').put(g);for(const o of s.outfits)tx.objectStore('outfits').put(o);for(const x of loaded)tx.objectStore('media').put(x);tx.objectStore('prefs').put({...s.prefs,id:'main'})});
+ if(!confirm(`Restaurer ${s.garments.length} vêtements, ${s.outfits.length} tenues et ${s.plans.length} dates prévues ? Toutes les données actuelles seront remplacées.`))return;
+ await transact(STORES,'readwrite',tx=>{for(const name of STORES)tx.objectStore(name).clear();for(const g of s.garments)tx.objectStore('garments').put(g);for(const o of s.outfits)tx.objectStore('outfits').put(o);for(const p of s.plans)tx.objectStore('plans').put(p);for(const x of loaded)tx.objectStore('media').put(x);tx.objectStore('prefs').put({...s.prefs,id:'main'})});
  await reload();closeModal();view='home';draft=baseDraft();editingOutfit=null;variationSource=null;render();toast('Sauvegarde vérifiée et restaurée avec toutes les images.');
  }finally{working=false;$('restore-file').value=''}}
 async function clearData(){if(!confirm('Effacer toutes les tenues, photos et vêtements de cet appareil ? Fais d’abord une sauvegarde.'))return;if(!confirm('Dernière confirmation : cette action est irréversible sans fichier de sauvegarde.'))return;
@@ -332,6 +404,11 @@ document.addEventListener('click',async e=>{
   if(action==='close-modal')closeModal();
   else if(action==='open-studio')navigate('studio');
   else if(action==='open-looks')navigate('looks');
+  else if(action==='open-planning')navigate('planning');
+  else if(action==='add-plan')planModal();
+  else if(action==='suggest-plan')planModal(null,target.dataset.id);
+  else if(action==='edit-plan')planModal(target.dataset.id);
+  else if(action==='delete-plan')await deletePlan($('plan-form')?.querySelector('[name=id]')?.value);
   else if(action==='add-garment')garmentModal();
   else if(action==='edit-garment')garmentModal(target.dataset.id);
   else if(action==='delete-garment')await deleteGarment($('garment-form')?.querySelector('[name=id]')?.value);
@@ -355,6 +432,7 @@ document.addEventListener('click',async e=>{
 document.addEventListener('submit',async e=>{
  if(e.target.id==='garment-form'){e.preventDefault();try{await saveGarment(e.target)}catch(err){error(err)}}
  if(e.target.id==='look-form'){e.preventDefault();try{await saveLook(e.target)}catch(err){error(err)}}
+ if(e.target.id==='plan-form'){e.preventDefault();try{await savePlan(e.target)}catch(err){error(err)}}
 });
 document.addEventListener('input',e=>{
  if(e.target.id==='search-wardrobe'){query=e.target.value;const pos=e.target.selectionStart;render();const input=$('search-wardrobe');input?.focus();input?.setSelectionRange(pos,pos)}
@@ -363,6 +441,7 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
  const fields={'filter-occasion':v=>selectedOccasion=v,'filter-style':v=>selectedStyle=v,'filter-season':v=>selectedSeason=v,'filter-material':v=>selectedMaterial=v,'filter-color':v=>selectedColor=v,'filter-availability':v=>selectedAvailability=v};
  if(fields[e.target.id]){fields[e.target.id](e.target.value);render()}
+ if(e.target.id==='suggest-occasion'){suggestOccasion=e.target.value;render()}
 });
 $('header-add').addEventListener('click',()=>garmentModal());
 $('restore-file').addEventListener('change',async e=>{try{await restoreBackup(e.target.files?.[0])}catch(err){error(err)}});
@@ -384,6 +463,6 @@ function endDrag(e){if(!dragged||e.pointerId!==dragged.pointerId)return;dragged=
 document.addEventListener('pointerup',endDrag);document.addEventListener('pointercancel',endDrag);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
 window.addEventListener('pagehide',clearURLs);
-Object.assign(window,{VESTIAIRE_DEBUG:{version:'0.2',getState:()=>({garments:structuredClone(garments),outfits:structuredClone(outfits),prefs:structuredClone(prefs)})}});
+Object.assign(window,{VESTIAIRE_DEBUG:{version:'0.2',getState:()=>({garments:structuredClone(garments),outfits:structuredClone(outfits),plans:structuredClone(plans),prefs:structuredClone(prefs)})}});
 draft=baseDraft();init();
 })();
