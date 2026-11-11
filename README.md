@@ -26,7 +26,7 @@ python3 -m http.server 8000
 
 Ouvrir `http://localhost:8000` dans un navigateur de bureau récent. **Ne pas ouvrir directement le fichier `index.html` depuis Fichiers** : certaines APIs, notamment IndexedDB et le service worker, peuvent être bloquées selon le navigateur.
 
-Pour installation sur **iPhone**, l'application devra d'abord être publiée sur une origine HTTPS **indépendante** des autres PWA (par exemple un nouveau Worker Cloudflare servant les fichiers statiques). On fera cela à la phase publication, après validation du design. Ne pas utiliser une sous-page de `leomgl.github.io` comme frontière de sécurité avec NEXUS ou RITUEL.
+Pour installation sur **iPhone**, l'application devra d'abord être publiée sur une origine HTTPS **indépendante** des autres PWA (par exemple un nouveau Worker Cloudflare servant les fichiers statiques). Le Worker Cloudflare `vestiaire-app` a été déployé sous https://vestiaire-app.q9pfwtztsc.workers.dev/. Voir [le guide de publication](edge-web/README.md). Ne pas utiliser une sous-page de `leomgl.github.io` comme frontière de sécurité avec NEXUS ou RITUEL.
 
 ## Format de sauvegarde V0.1
 
@@ -43,7 +43,7 @@ Le fichier `.vestiaire` n'est **pas un ZIP** et n'est **pas chiffré**. Un futur
 | Photos compressées/mannequin/aperçus | PWA | IndexedDB `media` |
 | Préférences de mannequin | PWA | IndexedDB `prefs` |
 | Sauvegardes manuelles | Propriétaire | Fichiers, iCloud Drive, Mac… |
-| Code source | Projet | GitHub, ultérieurement |
+| Code source | Projet | GitHub `Leomgl/Vestiaire-app` |
 | Notifications / NEXUS LINK | Extension future | Workers gratuits si besoin |
 | Cloudflare R2 | Non activé | Risque de dépassement facturé |
 
