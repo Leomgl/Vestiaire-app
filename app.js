@@ -529,7 +529,7 @@ document.addEventListener('click',async e=>{
   else if(action==='auto-fit-piece'&&draft[activeLayerKey]){const g=garments.find(x=>x.id===draft[activeLayerKey].garmentId),p=layoutFor(g);Object.assign(draft[activeLayerKey],{x:p.x,y:p.y,scale:1,zAdjust:0,opacity:1});render();toast('Pièce recalée : '+p.label)}
   else if(action==='auto-fit-look'){draft=FIT.calibrate(draft,id=>garments.find(x=>x.id===id));activeLayerKey=layerKeys(studioSlot)[0]||studioSlot;render();toast('Tenue recalée : enregistre-la pour conserver les changements.')}
   else if(action==='front-piece'&&draft[activeLayerKey]){const top=Math.max(0,...orderedEntries().map(([key,item])=>FIT.order(key,garments.find(g=>g.id===item.garmentId),item)));draft[activeLayerKey].zOrder=clamp(Math.ceil(top)+1,-500,500);render()}
-  else if(action==='back-piece'&&draft[activeLayerKey]){const bottom=Math.min(0,...orderedEntries().map(([key,item])=>FIT.order(key,garments.find(g=>g.id===item.garmentId),item)));draft[activeLayerKey].zOrder=clamp(Math.floor(bottom)-1,-500,500);render()}
+  else if(action==='back-piece'&&draft[activeLayerKey]){const bottom=Math.min(...orderedEntries().map(([key,item])=>FIT.order(key,garments.find(g=>g.id===item.garmentId),item)));draft[activeLayerKey].zOrder=clamp(Math.floor(bottom)-1,10,500);render()}
   else if(action==='upload-mannequin')$('mannequin-file').click();
   else if(action==='remove-mannequin'){prefs.mannequinId=null;await save('prefs',prefs);await pruneMedia();render();toast('Silhouette provisoire rétablie.')}
   else if(action==='persist-storage')await persistStorage();
