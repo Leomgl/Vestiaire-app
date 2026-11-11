@@ -314,7 +314,7 @@ function saveLookModal(){if(!pieceEntries().length){toast('Ajoute au moins une p
  <div class="form-footer">${o?button('delete-look','Supprimer cette tenue','danger'):''}<button type="submit" class="btn">Enregistrer la composition</button></div></form>`)}
 async function saveLook(form){if(working)return;working=true;try{const v=new FormData(form),name=clean(v.get('name'),110);if(!name)throw Error('Donne un nom à la tenue');
  const old=outfits.find(o=>o.id===editingOutfit);const thumbnailId=await storeThumbnail(await previewImage());
- const o={id:old?.id||uid(),name,occasion:OCCASIONS.includes(v.get('occasion'))?v.get('occasion'):'Libre',style:STYLES.includes(v.get('style'))?v.get('style'):'Autre',notes:clean(v.get('notes'),400),variantOf:old?.variantOf||variationSource||null,layers:structuredClone(draft),thumbnailId,createdAt:old?.createdAt||dateNow(),updatedAt:dateNow()};
+ const o={...(old||{}),id:old?.id||uid(),name,occasion:OCCASIONS.includes(v.get('occasion'))?v.get('occasion'):'Libre',style:STYLES.includes(v.get('style'))?v.get('style'):'Autre',notes:clean(v.get('notes'),400),variantOf:old?.variantOf||variationSource||null,layers:structuredClone(draft),thumbnailId,createdAt:old?.createdAt||dateNow(),updatedAt:dateNow()};
  await save('outfits',o);editingOutfit=o.id;variationSource=o.variantOf||null;await reload();await pruneMedia();closeModal();render();toast('Tenue enregistrée avec sa composition et son aperçu.');
  }finally{working=false}}
 async function storeThumbnail(blob){const r={id:uid(),blob,size:blob.size,type:blob.type,createdAt:dateNow()};await save('media',r);media.set(r.id,r);return r.id}
