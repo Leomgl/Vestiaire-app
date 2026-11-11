@@ -71,3 +71,10 @@
 
 /* Keep manually reordered garment layers inside the Studio canvas. */
 .stage{isolation:isolate}
+
+/* V0.5 — full-height reference mannequin (the 1024×1536 photo stays on-device). */
+.mannequin.photo-reference{inset:0;display:block}
+.mannequin.photo-reference img{width:100%;height:100%;object-fit:contain;object-position:center center}
+.calibration-anchor{position:absolute;z-index:1900;transform:translate(-50%,-50%);pointer-events:none;font-size:9px;color:#345d42;text-shadow:0 1px white;white-space:nowrap}
+.calibration-anchor i{display:block;width:7px;height:7px;border-radius:50%;background:#6eaf7c;border:1px solid white;box-shadow:0 0 0 1px #386743;position:absolute;left:-4px;top:-4px}
+.calibration-anchor em{display:block;font-style:normal;position:absolute;left:9px;top:-8px;padding:3px 5px;border-radius:5px;background:#ffffffdb}
