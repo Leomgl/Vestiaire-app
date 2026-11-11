@@ -48,3 +48,12 @@
  .planner-stats .stat{min-height:95px}
 }
 @media(max-width:350px){.bottom-nav button{font-size:7.3px}.bottom-nav button span{font-size:17px}.plan-card{grid-template-columns:72px minmax(0,1fr)}.plan-image{height:101px}}
+
+/* Fits local importer */
+.fits-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:17px 0}
+.fits-stats>div{padding:13px 8px;border:1px solid #e2e8e0;border-radius:11px;background:#f4f6f1;text-align:center;display:flex;flex-direction:column;gap:5px}
+.fits-stats strong{font-size:23px;font-weight:750;color:#324b39}
+.fits-stats span{font-size:10px;color:#657666}
+.layer-selector{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:7px;margin-bottom:7px}
+.layer-selector .btn{font-size:11px}
+#fits-progress{margin:16px 0;font-size:12px;font-weight:650;line-height:1.5}
