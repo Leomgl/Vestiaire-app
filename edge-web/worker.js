@@ -10,6 +10,7 @@ const TYPES={
  '/app.js':'text/javascript; charset=utf-8',
  '/styles.css':'text/css; charset=utf-8',
  '/v02.css':'text/css; charset=utf-8',
+ '/fits-import.js':'text/javascript; charset=utf-8',
  '/sw.js':'text/javascript; charset=utf-8',
  '/manifest.webmanifest':'application/manifest+json; charset=utf-8',
  '/icon.svg':'image/svg+xml',
@@ -17,7 +18,7 @@ const TYPES={
  '/icons/icon-512.png':'image/png',
  '/icons/apple-touch-icon.png':'image/png'
 };
-const CSP="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+const CSP="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' https://mcp.fits-app.com; worker-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 export default {
  async fetch(request){
   const url=new URL(request.url);
