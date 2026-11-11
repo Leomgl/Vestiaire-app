@@ -244,6 +244,7 @@ function settingsView(){return heading('CONFIDENTIALITÉ & SAUVEGARDES','Réglag
  <div class="settings-actions">${button('persist-storage','Protéger le stockage local','soft')}</div><p class="section-note" style="margin-top:14px">Le mode persistant peut limiter l’effacement automatique des données, mais ne remplace jamais une sauvegarde externe.</p></section>
  <section class="panel"><div class="panel-header"><h2>Sauvegardes complètes</h2></div><div class="notice">Exportation au format <strong>.vestiaire</strong> : vêtements, photographies, mannequin et looks sauvegardés. Conserve une copie dans Fichiers / iCloud Drive ou sur ton Mac.</div>
  <div class="settings-actions">${button('export-backup','⇩ Exporter une sauvegarde')}${button('import-backup','⇧ Restaurer une sauvegarde','ghost')}</div><p class="section-note" style="margin-top:13px">Dernier export lancé : ${prefs.lastBackupAt?esc(formatDate(prefs.lastBackupAt)):'aucun'}. La copie externe doit être vérifiée dans Fichiers.</p></section>
+ <section class="panel"><div class="panel-header"><h2>Importer depuis Fits</h2></div><p class="muted">Transfère un export privé au format JSON contenant tes vêtements et tenues Fits. L'import ajoute uniquement les éléments manquants et ne remplace jamais ton dressing actuel.</p><div class="settings-actions">${button('import-fits','Importer mon fichier Fits','soft')}</div><p class="section-note">Les photos sont récupérées directement sur l'iPhone depuis les liens Fits quand c'est possible ; aucune fiche n'est envoyée à GitHub ou Cloudflare.</p></section>
  <section class="panel"><div class="panel-header"><h2>À venir · NEXUS LINK</h2></div><p class="muted">La V1.2 pourra associer les tenues à l’agenda NEXUS, puis proposer des looks selon « Restaurant », « Travail », « Soirée » et les autres occasions autorisées.</p>
  <div class="notice" style="margin-top:17px">Aucune synchronisation distante n’est activée dans ce prototype. Les photos ne sont pas envoyées sur GitHub ou Cloudflare.</div>
  <div class="settings-actions">${button('clear-data','Effacer toutes les données','danger')}</div></section></div>`}
@@ -433,6 +434,7 @@ document.addEventListener('click',async e=>{
   else if(action==='persist-storage')await persistStorage();
   else if(action==='export-backup')await exportBackup();
   else if(action==='import-backup')$('restore-file').click();
+   else if(action==='import-fits')$('fits-import-file').click();
   else if(action==='clear-data')await clearData();
  }catch(err){error(err)}
 });
@@ -452,7 +454,8 @@ document.addEventListener('change',e=>{
 });
 $('header-add').addEventListener('click',()=>garmentModal());
 $('restore-file').addEventListener('change',async e=>{try{await restoreBackup(e.target.files?.[0])}catch(err){error(err)}});
-$('mannequin-file').addEventListener('change',async e=>{try{await importMannequin(e.target.files?.[0])}catch(err){error(err)}finally{e.target.value=''}});
+$('fits-import-file').addEventListener('change',async e=>{try{if(!window.VESTIAIRE_FITS)throw Error('Importateur non chargé');await window.VESTIAIRE_FITS.preview(e.target.files?.[0])}catch(err){error(err)}finally{e.target.value=''}});
+ $('mannequin-file').addEventListener('change',async e=>{try{await importMannequin(e.target.files?.[0])}catch(err){error(err)}finally{e.target.value=''}});
 // Pointer Events unify touch and mouse. Studio stores positions as percentages of the canvas.
 document.addEventListener('pointerdown',e=>{
  const layer=e.target.closest('[data-drag-slot]');if(!layer||view!=='studio')return;
