@@ -23,7 +23,29 @@
  const caption=p=>clean(p.name||({top:'Haut',bottom:'Pantalon',outerwear:'Veste',footwear:'Chaussures',accessory:'Accessoire',other:'Accessoire'}[p.slot]||'Vêtement')+' '+(p.colors||[]).join(', '),110);
  function placeholder(p){const canvas=document.createElement('canvas');canvas.width=360;canvas.height=460;const ctx=canvas.getContext('2d');ctx.fillStyle='#eeefe9';ctx.fillRect(0,0,360,460);ctx.strokeStyle='#a3b4a3';ctx.lineWidth=4;ctx.strokeRect(18,18,324,424);ctx.fillStyle='#59705b';ctx.font='bold 27px system-ui';ctx.textAlign='center';ctx.fillText('PHOTO À AJOUTER',180,194,305);ctx.font='18px system-ui';ctx.fillText(caption(p),180,236,290);ctx.font='14px system-ui';ctx.fillText('Import Fits • image indisponible',180,264,300);return new Promise(resolve=>canvas.toBlob(resolve,'image/webp',.8))}
  async function compress(blob){const u=URL.createObjectURL(blob);try{const im=new Image();im.src=u;await im.decode();const scale=Math.min(1,950/Math.max(im.naturalWidth,im.naturalHeight));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.naturalWidth*scale));c.height=Math.max(1,Math.round(im.naturalHeight*scale));c.getContext('2d').drawImage(im,0,0,c.width,c.height);return await new Promise((resolve,reject)=>c.toBlob(x=>x?resolve(x):reject(Error('Conversion photo impossible')),'image/webp',.82))}finally{URL.revokeObjectURL(u)}}
- async function download(p){if(!p.imageUrl)return null;const u=new URL(p.imageUrl);if(u.protocol!=='https:'||u.hostname!=='mcp.fits-app.com')return null;const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),6500);try{const response=await fetch(u.href,{mode:'cors',credentials:'omit',cache:'no-store',signal:controller.signal});if(!response.ok)return null;const len=Number(response.headers.get('content-length'))||0;if(len>20_000_000)return null;const blob=await response.blob();if(blob.size>20_000_000||!blob.type.startsWith('image/'))return null;return await compress(blob)}catch{return null}finally{clearTimeout(timer)}}
+ let directBlocked=false;
+ async function download(p){
+  if(!p.imageUrl)return null;
+  let u;try{u=new URL(p.imageUrl)}catch{return null}
+  if(u.protocol!=='https:'||u.hostname!=='mcp.fits-app.com'||!u.pathname.startsWith('/img/'))return null;
+  async function normal(){
+   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),7000);
+   try{const response=await fetch(u.href,{mode:'cors',credentials:'omit',cache:'no-store',signal:controller.signal});
+    if(!response.ok)return null;const len=Number(response.headers.get('content-length'))||0;if(len>20_000_000)return null;
+    const blob=await response.blob();if(blob.size>20_000_000||!blob.type.startsWith('image/'))return null;return await compress(blob);
+   }catch(e){if(e instanceof TypeError)directBlocked=true;return null}finally{clearTimeout(timer)}
+  }
+  async function proxy(){
+   const transfer=parsed?.transfer;if(!transfer||typeof transfer.proxyUrl!=='string'||typeof transfer.proxyToken!=='string')return null;
+   let host;try{host=new URL(transfer.proxyUrl)}catch{return null}
+   if(host.protocol!=='https:'||host.hostname!=='vestiaire-fits-bridge.q9pfwtztsc.workers.dev')return null;
+   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),17000);
+   try{const response=await fetch(host.origin+'/image',{method:'POST',mode:'cors',credentials:'omit',cache:'no-store',headers:{'content-type':'application/json','authorization':'Bearer '+transfer.proxyToken},body:JSON.stringify({src:u.href}),signal:controller.signal});
+    if(!response.ok)return null;const len=Number(response.headers.get('content-length'))||0;if(len>20_000_000)return null;const blob=await response.blob();if(blob.size>20_000_000||!blob.type.startsWith('image/'))return null;return await compress(blob);
+   }catch{return null}finally{clearTimeout(timer)}
+  }
+  return (!directBlocked?await normal():null)||await proxy();
+ }
  async function thumbnail(layers,imageById){const canvas=document.createElement('canvas');canvas.width=420;canvas.height=560;const c=canvas.getContext('2d');c.fillStyle='#f1f2ed';c.fillRect(0,0,420,560);c.fillStyle='#b7c1b3';c.beginPath();c.ellipse(210,80,27,36,0,0,Math.PI*2);c.fill();c.fillRect(174,124,72,230);c.fillRect(177,354,26,155);c.fillRect(216,354,26,155);const ordered=Object.entries(layers).filter(([k,v])=>v&&imageById.has(v.garmentId)).sort(([a],[b])=>(['bottom','top','outerwear','footwear','accessory'].indexOf(a.split('__')[0]))-(['bottom','top','outerwear','footwear','accessory'].indexOf(b.split('__')[0])));
  for(const [key,v] of ordered){const pos=POS[key.split('__')[0]],blob=imageById.get(v.garmentId);const u=URL.createObjectURL(blob);try{const im=new Image();im.src=u;await im.decode();const w=420*pos[2]/100*v.scale,h=560*pos[3]/100*v.scale,ratio=Math.min(w/im.naturalWidth,h/im.naturalHeight);const dw=im.naturalWidth*ratio,dh=im.naturalHeight*ratio;c.drawImage(im,420*v.x/100-dw/2,560*v.y/100-dh/2,dw,dh)}catch{}finally{URL.revokeObjectURL(u)}}return new Promise(resolve=>canvas.toBlob(resolve,'image/webp',.8))}
  function makeModal(data,existing){const pieceDup=data.pieces.filter(p=>existing.pieces.has(p.pieceId)).length,lookDup=data.outfits.filter(o=>existing.outfits.has(o.outfitId)).length;const links=data.pieces.filter(p=>p.imageUrl).length;
