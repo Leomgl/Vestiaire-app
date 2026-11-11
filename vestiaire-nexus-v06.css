@@ -1,0 +1,4 @@
+/* Vestiaire V0.6 · NEXUS LINK settings */
+#vestiaire-nexus-code{width:100%;max-width:100%;box-sizing:border-box;min-height:85px;border:1px solid #ced9cc;border-radius:10px;padding:12px;font-size:12px;overflow-wrap:anywhere;background:#fff;color:#34463b}
+#vestiaire-nexus-auto{width:18px;height:18px;flex:none;accent-color:#4c795b}
+@media(max-width:680px){#vestiaire-nexus-code{font-size:16px}.settings-actions{flex-wrap:wrap}}
