@@ -1,0 +1,11 @@
+{
+  "name": "VESTIAIRE — Dressing & Studio",
+  "short_name": "VESTIAIRE",
+  "description": "Dressing personnel et studio de tenues, hors ligne et sans abonnement.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#efeee9",
+  "theme_color": "#efeee9",
+  "icons": [{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]
+}
