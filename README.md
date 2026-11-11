@@ -1,6 +1,22 @@
-# VESTIAIRE — Prototype V0.3 (11 novembre 2026)
+# VESTIAIRE — Prototype V0.4 (11 novembre 2026)
 
 Application personnelle indépendante (PWA) pour dressing et studio de tenues, construite avec HTML/CSS/JS natifs, sans framework, sans abonnement, sans serveur de stockage et sans compte.
+
+## Nouveautés V0.4 — Studio et recalage des tenues Fits
+
+- Moteur de pose partagé `fit-engine.js` : ancrages spécifiques à la **ceinture (taille), chaussettes, chaussures, pantalon, chemise, pull, veste, manteau, chapeau, sac, montre et écharpe**.
+- Dimensions par sous-type : pantalons plus longs, vestes et manteaux resserrés, chaussures alignées en bas.
+- Ordre naturel des superpositions : chemise sous pull, pull sous veste, veste sous manteau, ceinture devant le pantalon. Chaque couche peut aussi être forcée devant/derrière et son opacité ajustée.
+- Même moteur pour le Studio et les **miniatures des tenues** ; évite les divergences entre édition et bibliothèque.
+- Boutons dans le Studio : **Recaler cette pièce**, **Recaler la tenue**, **Devant**, **Derrière**.
+- **Recaler mes looks Fits** dans Mes tenues et Réglages : correction des tenues déjà importées + génération de nouvelles miniatures. Le navigateur recadre les marges transparentes lorsqu'elles sont importantes.
+- **Sécurité des données** : l'opération nécessite la confirmation d'une sauvegarde `.vestiaire`, écrit toutes les mises à jour atomiquement, conserve les originaux et les anciennes miniatures pour retour arrière.
+- **Annuler les recalages non modifiés** dans Réglages : restaure les positions/miniatures d'avant pour les tenues non rééditées depuis le recalage.
+- Les prochaines tenues importées depuis Fits utilisent immédiatement la nouvelle logique de placement.
+
+Le recalage n'est **jamais automatique sur la base existante**. La V0.4 reste local-first, sans frais supplémentaires ni nouveaux bindings Cloudflare. Après migration, refaire un export `.vestiaire`.
+
+Documentation détaillée : [Correctifs Studio V0.4](docs/FITTING-V04.md).
 
 ## Nouveautés V0.3 — Import privé Fits
 
