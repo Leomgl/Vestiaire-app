@@ -295,20 +295,21 @@ function addLayer(){const n=Array.from({length:7},(_,i)=>i+2).find(i=>!draft[stu
 function newLook(){draft=baseDraft();editingOutfit=null;variationSource=null;studioSlot='top';activeLayerKey='top';navigate('studio')}
 function editLook(id){const o=outfits.find(x=>x.id===id);if(!o)return;editingOutfit=id;variationSource=o.variantOf||null;draft={...baseDraft(),...structuredClone(o.layers)};studioSlot='top';activeLayerKey='top';navigate('studio')}
 function createVariant(id){const o=outfits.find(x=>x.id===id);if(!o)return;draft={...baseDraft(),...structuredClone(o.layers)};editingOutfit=null;variationSource=id;studioSlot='top';activeLayerKey='top';navigate('studio');toast('Variante créée : modifie le look, puis enregistre-le sous un nouveau nom.');}
-async function previewImage(){
- const stage=$('stage');const w=720,h=900;
- const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
- const ctx=canvas.getContext('2d');ctx.fillStyle='#f2f2ed';ctx.fillRect(0,0,w,h);
+async function previewImage(layers=draft,imageOverrides=new Map(),garmentLookup=id=>garments.find(g=>g.id===id)){
+ const w=600,h=750,canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+ const ctx=canvas.getContext('2d');if(!ctx)throw Error('Rendu indisponible');
+ ctx.fillStyle='#f2f2ed';ctx.fillRect(0,0,w,h);
  const imageFrom=async blob=>{const u=URL.createObjectURL(blob);try{const im=new Image();im.src=u;await im.decode();return im}finally{URL.revokeObjectURL(u)}};
- async function drawCover(blob,x,y,bw,bh){const im=await imageFrom(blob);const ratio=Math.min(bw/im.naturalWidth,bh/im.naturalHeight);const iw=im.naturalWidth*ratio,ih=im.naturalHeight*ratio;ctx.drawImage(im,x+(bw-iw)/2,y+(bh-ih)/2,iw,ih)}
+ async function drawCover(blob,x,y,bw,bh,opacity=1){const im=await imageFrom(blob);const ratio=Math.min(bw/im.naturalWidth,bh/im.naturalHeight);const iw=im.naturalWidth*ratio,ih=im.naturalHeight*ratio;ctx.save();ctx.globalAlpha=opacity;ctx.drawImage(im,x+(bw-iw)/2,y+(bh-ih)/2,iw,ih);ctx.restore()}
  if(prefs.mannequinId&&media.get(prefs.mannequinId))await drawCover(media.get(prefs.mannequinId).blob,w*.19,h*.03,w*.62,h*.92);
- else{ctx.fillStyle='#d1d8cc';ctx.beginPath();ctx.ellipse(w*.5,h*.13,45,55,0,0,Math.PI*2);ctx.fill();ctx.fillRect(w*.39,h*.23,w*.22,h*.38);ctx.fillRect(w*.4,h*.6,w*.09,h*.3);ctx.fillRect(w*.51,h*.6,w*.09,h*.3)}
- for(const [slot,item] of pieceEntries().sort(([a],[b])=>SLOTS[slotOfKey(a)].z-SLOTS[slotOfKey(b)].z)){
-  const g=garments.find(x=>x.id===item.garmentId),blob=media.get(g.imageId)?.blob;if(!blob)continue;
-  const def=SLOTS[slotOfKey(slot)],tw=w*def.w/100*item.scale,th=h*def.h/100*item.scale;
-  await drawCover(blob,w*item.x/100-tw/2,h*item.y/100-th/2,tw,th);
+ else{ctx.fillStyle='#b9c4b6';ctx.beginPath();ctx.ellipse(w*.5,h*.13,37,46,0,0,Math.PI*2);ctx.fill();ctx.fillRect(w*.39,h*.23,w*.22,h*.38);ctx.fillRect(w*.4,h*.6,w*.09,h*.3);ctx.fillRect(w*.51,h*.6,w*.09,h*.3)}
+ const rows=FIT.sorted(layers,garmentLookup);
+ for(const [key,item] of rows){
+  const g=garmentLookup(item.garmentId),blob=imageOverrides.get(g.id)||media.get(g.imageId)?.blob;if(!blob)continue;
+  const def=layoutFor(g),tw=w*def.w/100*(item.scale??1),th=h*def.h/100*(item.scale??1);
+  await drawCover(blob,w*item.x/100-tw/2,h*item.y/100-th/2,tw,th,clamp(item.opacity??1,.2,1));
  }
- return new Promise((resolve,reject)=>canvas.toBlob(x=>x?resolve(x):reject(Error('Aperçu impossible')),'image/webp',.84));
+ return new Promise((resolve,reject)=>canvas.toBlob(x=>x?resolve(x):reject(Error('Aperçu impossible')),'image/webp',.83));
 }
 function saveLookModal(){if(!pieceEntries().length){toast('Ajoute au moins une pièce avant de sauvegarder.');return}
  const o=outfits.find(x=>x.id===editingOutfit),base=variationSource?outfits.find(x=>x.id===variationSource):null;
