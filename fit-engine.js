@@ -58,16 +58,16 @@
     if(word('cardigan','gilet'))return'cardigan';
     if(word('hoodie','sweatshirt','sweat','sweater à capuche'))return'hoodie';
     if(word('pull','sweater','knit','maille','tricot'))return'sweater';
+    if(word('tshirt','t-shirt','tee'))return'tshirt';
     if(word('shirt','chemise','surchemise'))return'shirt';
     if(word('polo'))return'polo';
-    if(word('tshirt','t-shirt','tee'))return'tshirt';
     return'top';
   }
   return'accessory';
  };
  const profile=g=>{const type=guess(g);return {...TYPES[type],type,slot:g?.category||'accessory'}};
  const keySlot=key=>typeof key==='string'&&/^(top|bottom|outerwear|footwear|accessory)(?:__[2-8])?$/.test(key)?key.split('__')[0]:null;
- const order=(key,g,item)=>profile(g).z+(Number.isFinite(item?.zAdjust)?Math.max(-12,Math.min(12,item.zAdjust)):0)+(key.includes('__')?Number(key.split('__')[1])*.01:0);
+ const order=(key,g,item)=>Number.isFinite(item?.zOrder)?item.zOrder:profile(g).z+(key.includes('__')?Number(key.split('__')[1])*.01:0);
  const sorted=(layers,lookup)=>Object.entries(layers||{}).filter(([key,item])=>keySlot(key)&&item&&lookup(item.garmentId)).sort(([ak,ai],[bk,bi])=>order(ak,lookup(ai.garmentId),ai)-order(bk,lookup(bi.garmentId),bi));
  const calibrate=(layers,lookup)=>{
   const grouped={top:[],bottom:[],outerwear:[],footwear:[],accessory:[]};
