@@ -1,6 +1,22 @@
-# VESTIAIRE — Prototype V0.4 (11 novembre 2026)
+# VESTIAIRE — Prototype V0.5 (11 novembre 2026)
 
 Application personnelle indépendante (PWA) pour dressing et studio de tenues, construite avec HTML/CSS/JS natifs, sans framework, sans abonnement, sans serveur de stockage et sans compte.
+
+## V0.5 — Calibration sur le mannequin personnel
+
+Le moteur utilise désormais un profil de **repères mesurés sur un portrait frontal 1024×1536 (2:3)**. **Aucune photo personnelle n'est incluse dans ce dépôt** : elle doit être importée localement dans Réglages.
+
+- Le Studio et les miniatures placent la photo sur **la pleine hauteur du même canevas 4:5**, sans le précédent rétrécissement de la silhouette.
+- Réglages → Ton mannequin → Importer mon mannequin : un portrait au format 2:3 active automatiquement le profil `reference-v05`. Si le mannequin avait déjà été importé, utiliser « Utiliser les repères de référence ».
+- Le Studio dispose de **Voir les repères** pour contrôler visuellement épaules, taille, hanches, genoux, pieds.
+- Positions et tailles du moteur `fit-engine.js` désormais dépendantes du mannequin sélectionné. La pose de référence est choisie uniquement quand le profil personnel est actif.
+- Les tenues Fits précédemment recalées en V0.4 peuvent être **recalées une seconde fois en V0.5**, après sauvegarde. Le traitement reste explicite, atomique et annulable pour les compositions non modifiées.
+- L'import de nouveaux looks Fits respecte également le profil actif et peut afficher le mannequin local dans les miniatures.
+- Aucun appel API, aucune photo uploadée, aucun stockage payant ajouté.
+
+**Limite connue :** le fond blanc de certaines photos de vêtements Fits et les cintres visibles ne sont pas effacés par la seule calibration. Un module de détourage local et prudent sera à améliorer ultérieurement.
+
+Voir les [points d'ancrage détaillés et consignes iPhone](docs/MANNEQUIN-V05.md).
 
 ## Nouveautés V0.4 — Studio et recalage des tenues Fits
 
