@@ -1,0 +1,18 @@
+name: VESTIAIRE checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks
+        run: |
+          for file in *.js edge-web/*.js; do node --check "$file"; done
+      - name: VESTIAIRE NEXUS tests
+        run: node --test tests/*.test.cjs
