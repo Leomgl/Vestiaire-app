@@ -166,7 +166,7 @@ function studioView(){
  </section></div>`;
 }
 function outfitCard(o){const src=urlFor(o.thumbnailId);return `<button class="item-card look-card" data-act="edit-look" data-id="${o.id}"><div class="item-photo ${src?'':'placeholder'}">${src?`<img class="look-preview" src="${src}" alt="Aperçu de la tenue">`:'◈'}<span class="look-overlay">${esc(o.occasion||'Sans occasion')}</span></div><div class="item-info"><strong>${esc(o.name)}</strong><p>${Object.values(o.layers||{}).filter(Boolean).length} pièces · ${esc(o.style||'Style libre')}</p>${o.variantOf?`<span class="tag">Variante${outfits.some(x=>x.id===o.variantOf)?' · '+esc(outfits.find(x=>x.id===o.variantOf).name):''}</span>`:''}</div></button>`}
-function looksView(){const list=outfits.filter(o=>selectedOccasion==='all'||o.occasion===selectedOccasion);return heading('TES COMPOSITIONS','Mes tenues','Retrouve exactement les compositions que tu as enregistrées et réouvre-les dans le Studio.',button('open-planning','Mon planning','ghost')+button('new-look','＋ Créer une tenue'))+
+function looksView(){const list=outfits.filter(o=>selectedOccasion==='all'||o.occasion===selectedOccasion);return heading('TES COMPOSITIONS','Mes tenues','Retrouve exactement les compositions que tu as enregistrées et réouvre-les dans le Studio.',button('open-fit-calibration','Recaler mes looks Fits','soft')+button('open-planning','Mon planning','ghost')+button('new-look','＋ Créer une tenue'))+
  `<div class="toolbar"><select id="filter-occasion" class="select"><option value="all">Toutes les occasions</option>${OCCASIONS.map(x=>`<option ${x===selectedOccasion?'selected':''}>${x}</option>`).join('')}</select></div>`+
  (list.length?`<div class="grid-cards">${list.map(outfitCard).join('')}</div>`:`<div class="empty"><div class="empty-icon">▦</div><h3>${outfits.length?'Aucune tenue pour ce filtre':'Tes futurs looks apparaîtront ici'}</h3><p>Crée ton premier look dans le Studio, puis enregistre-le.</p>${button('open-studio','Ouvrir le Studio')}</div>`);
 }
@@ -311,6 +311,87 @@ async function previewImage(layers=draft,imageOverrides=new Map(),garmentLookup=
  }
  return new Promise((resolve,reject)=>canvas.toBlob(x=>x?resolve(x):reject(Error('Aperçu impossible')),'image/webp',.83));
 }
+
+/* Recalibration is explicit, reversible for unedited looks, and writes all changes atomically. */
+async function cropTransparentImage(blob){
+ if(!blob||!blob.type?.startsWith('image/'))return null;
+ const u=URL.createObjectURL(blob);
+ try{
+  const im=new Image();im.src=u;await im.decode();
+  if(!im.naturalWidth||!im.naturalHeight)return null;
+  const factor=Math.min(1,480/Math.max(im.naturalWidth,im.naturalHeight));
+  const c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.naturalWidth*factor));c.height=Math.max(1,Math.round(im.naturalHeight*factor));
+  const ctx=c.getContext('2d',{willReadFrequently:true});if(!ctx)return null;
+  ctx.drawImage(im,0,0,c.width,c.height);
+  const {data}=ctx.getImageData(0,0,c.width,c.height);
+  let x0=c.width,y0=c.height,x1=-1,y1=-1;
+  for(let y=0;y<c.height;y+=2)for(let x=0;x<c.width;x+=2){
+   if(data[(y*c.width+x)*4+3]>28){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y)}
+  }
+  if(x1<0)return null;
+  x0=Math.max(0,x0-5);y0=Math.max(0,y0-5);
+  x1=Math.min(c.width,x1+7);y1=Math.min(c.height,y1+7);
+  if((x1-x0)/c.width>.91&&(y1-y0)/c.height>.91)return null;
+  const sx=x0/factor,sy=y0/factor,sw=(x1-x0)/factor,sh=(y1-y0)/factor;
+  const resize=Math.min(1,1000/Math.max(sw,sh)),out=document.createElement('canvas');
+  out.width=Math.max(1,Math.round(sw*resize));out.height=Math.max(1,Math.round(sh*resize));
+  out.getContext('2d').drawImage(im,sx,sy,sw,sh,0,0,out.width,out.height);
+  return await new Promise((resolve,reject)=>out.toBlob(b=>b?resolve(b):reject(Error('Détourage impossible')),'image/webp',.84));
+ }finally{URL.revokeObjectURL(u)}
+}
+function recalibrationDialog(){
+ const eligible=outfits.filter(o=>o.source?.app==='fits'&&!o.calibration?.appliedAt);
+ if(!eligible.length){toast('Toutes les tenues Fits ont déjà été recalées.');return}
+ modal('Recaler les tenues Fits',`<div class="recalibrate-help"><p>La nouvelle géométrie corrige tailles, placements et couches. Les miniatures seront régénérées, avec détourage des marges transparentes lorsque possible.</p><strong>${eligible.length} tenues Fits concernées</strong><p>Les tenues créées manuellement ne seront pas modifiées. Un retour aux placements précédents est prévu tant que tu n'as pas édité chaque tenue depuis.</p></div><label class="field"><span><input type="checkbox" id="fit-backup-ok"> J'ai enregistré une sauvegarde .vestiaire dans Fichiers</span></label><p id="fit-progress" class="section-note" aria-live="polite">Aucune modification pour l'instant.</p><div class="form-footer">${button('close-modal','Annuler','ghost')}${button('apply-fits-fit','Recaler et actualiser les aperçus')}</div>`);
+}
+async function recalibrateFits(){
+ if(working)return;
+ if(!$('fit-backup-ok')?.checked){const status=$('fit-progress');if(status)status.textContent='Exportez d’abord une sauvegarde depuis Réglages, puis coche la confirmation.';return}
+ const targets=outfits.filter(o=>o.source?.app==='fits'&&!o.calibration?.appliedAt);if(!targets.length)return;
+ working=true;const status=$('fit-progress'),now=dateNow();
+ const progress=msg=>{if(status&&status.isConnected)status.textContent=msg};
+ try{
+  const usedIds=new Set(targets.flatMap(o=>Object.values(o.layers||{}).filter(Boolean).map(x=>x.garmentId)));
+  const candidates=garments.filter(g=>usedIds.has(g.id)&&!g.originalImageId&&g.source?.app==='fits');
+  const patchedGarments=[],pendingMedia=[],imageOverrides=new Map(),modified=new Map();
+  for(let i=0;i<candidates.length;i++){
+   const g=candidates[i],blob=media.get(g.imageId)?.blob;
+   progress('Analyse des silhouettes : '+(i+1)+'/'+candidates.length);
+   try{const crop=await cropTransparentImage(blob);
+    if(crop){const newId=uid();patchedGarments.push({...g,imageId:newId,originalImageId:g.imageId});pendingMedia.push({id:newId,blob:crop,size:crop.size,type:crop.type,createdAt:now});imageOverrides.set(g.id,crop);modified.set(g.id,patchedGarments[patchedGarments.length-1])}
+   }catch(e){console.warn('VESTIAIRE: transparency analysis skipped',e)}
+  }
+  const lookup=id=>modified.get(id)||garments.find(g=>g.id===id);
+  const changed=[];
+  for(let i=0;i<targets.length;i++){
+   const o=targets[i];progress('Recomposition des tenues : '+(i+1)+'/'+targets.length);
+   const layers=FIT.calibrate(o.layers,lookup),thumbnail=await previewImage(layers,imageOverrides,lookup),thumbnailId=uid();
+   pendingMedia.push({id:thumbnailId,blob:thumbnail,size:thumbnail.size,type:thumbnail.type,createdAt:now});
+   changed.push({...o,layers,thumbnailId,updatedAt:now,calibration:{appliedAt:now,previousLayers:structuredClone(o.layers),previousThumbnailId:o.thumbnailId||null}});
+  }
+  progress('Enregistrement sécurisé…');
+  await transact(['garments','outfits','media'],'readwrite',tx=>{
+   for(const g of patchedGarments)tx.objectStore('garments').put(g);
+   for(const o of changed)tx.objectStore('outfits').put(o);
+   for(const m of pendingMedia)tx.objectStore('media').put(m);
+  });
+  await reload();closeModal();view='looks';render();
+  toast(changed.length+' tenues Fits recalées ! '+patchedGarments.length+' images recadrées.');
+ }catch(e){progress('Aucune modification enregistrée : '+(e?.message||e));throw e}
+ finally{working=false}
+}
+async function undoFitsRecalibration(){
+ if(working)return;
+ const candidates=outfits.filter(o=>o.source?.app==='fits'&&o.calibration?.appliedAt&&o.updatedAt===o.calibration.appliedAt);
+ if(!candidates.length){toast('Aucune tenue Fits recalée sans modification ultérieure.');return}
+ if(!confirm('Rétablir le placement et la miniature précédents pour '+candidates.length+' tenues Fits ? Les autres tenues seront conservées.'))return;
+ working=true;
+ try{
+  const restored=candidates.map(o=>{const copy={...o,layers:structuredClone(o.calibration.previousLayers),thumbnailId:o.calibration.previousThumbnailId,updatedAt:dateNow()};delete copy.calibration;return copy});
+  await transact(['outfits'],'readwrite',tx=>restored.forEach(o=>tx.objectStore('outfits').put(o)));
+  await reload();render();toast(restored.length+' tenues revenues à leurs placements antérieurs.');
+ }finally{working=false}
+}
 function saveLookModal(){if(!pieceEntries().length){toast('Ajoute au moins une pièce avant de sauvegarder.');return}
  const o=outfits.find(x=>x.id===editingOutfit),base=variationSource?outfits.find(x=>x.id===variationSource):null;
  modal(o?'Modifier la tenue':base?'Enregistrer une variante':'Enregistrer la tenue',`<form id="look-form">${field('Nom de la tenue','name',o?.name||(base?base.name+' — variante':''),'Ex. Restaurant chic décontracté')}
@@ -347,6 +428,7 @@ function validateBackupState(s,blobIds){
  const garmentIds=new Set(),lookIds=new Set();
  for(const g of s.garments){
   if(!g||!validId(g.id)||garmentIds.has(g.id)||!SLOTS[g.category]||!validId(g.imageId)||!blobIds.has(g.imageId)||
+     (g.originalImageId!=null&&(!validId(g.originalImageId)||!blobIds.has(g.originalImageId)))||
      (g.availability!=null&&!AVAILABILITY.some(x=>x[0]===g.availability))||
      typeof g.name!=='string'||g.name.length>110||typeof g.color!=='string'||g.color.length>80||
      !Array.isArray(g.occasions)||!Array.isArray(g.seasons))throw Error('Fiche vêtement invalide');
@@ -368,7 +450,7 @@ function validateBackupState(s,blobIds){
  if(s.plans!=null){if(!Array.isArray(s.plans))throw Error('Planning invalide');const planIds=new Set();for(const p of s.plans){if(!p||!validId(p.id)||planIds.has(p.id)||!validLocalDate(p.date)||!lookIds.has(p.outfitId)||typeof p.notes!=='string'||p.notes.length>400||!['Libre',...OCCASIONS].includes(p.occasion))throw Error('Événement du planning invalide');planIds.add(p.id)}}
 }
 async function pruneMedia(){
- const wanted=new Set([prefs.mannequinId,...garments.map(x=>x.imageId),...outfits.map(x=>x.thumbnailId)].filter(Boolean));
+ const wanted=new Set([prefs.mannequinId,...garments.flatMap(x=>[x.imageId,x.originalImageId]),...outfits.flatMap(x=>[x.thumbnailId,x.calibration?.previousThumbnailId])].filter(Boolean));
  const unused=[...media.keys()].filter(id=>!wanted.has(id));if(!unused.length)return 0;
  await transact(['media'],'readwrite',tx=>unused.forEach(id=>tx.objectStore('media').delete(id)));
  await reload();return unused.length;
@@ -418,6 +500,9 @@ document.addEventListener('click',async e=>{
   else if(action==='open-studio')navigate('studio');
   else if(action==='open-looks')navigate('looks');
   else if(action==='open-planning')navigate('planning');
+  else if(action==='open-fit-calibration')recalibrationDialog();
+  else if(action==='apply-fits-fit')await recalibrateFits();
+  else if(action==='undo-fits-fit')await undoFitsRecalibration();
   else if(action==='add-plan')planModal();
   else if(action==='suggest-plan')planModal(null,target.dataset.id);
   else if(action==='edit-plan')planModal(target.dataset.id);
