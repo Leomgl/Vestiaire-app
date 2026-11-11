@@ -143,7 +143,7 @@ function stageHTML(){
  const murl=urlFor(prefs.mannequinId);
  return `<div class="stage" id="stage"><div class="mannequin">${murl?`<img src="${murl}" alt="Mannequin personnalisé">`:fallbackMannequin}</div>${pieceEntries().map(([slot,item])=>{
   const g=garments.find(x=>x.id===item.garmentId),def=SLOTS[slotOfKey(slot)],u=urlFor(g.imageId);
-  return `<div class="piece-layer ${activeLayerKey===slot?'selected':''}" data-drag-slot="${slot}" style="left:${item.x}%;top:${item.y}%;width:${def.w}%;height:${def.h}%;--scale:${item.scale};z-index:${def.z+(slot.includes('__')?Number(slot.split('__')[1])*0.1:0)}">${u?`<img src="${u}" alt="${esc(g.name)}" draggable="false">`:`<span>${esc(g.name)}</span>`}</div>`
+  return `<div class="piece-layer ${activeLayerKey===slot?'selected':''}" data-drag-slot="${slot}" style="left:${item.x}%;top:${item.y}%;width:${def.w}%;height:${def.h}%;--scale:${item.scale};z-index:${def.z*10+(slot.includes('__')?Number(slot.split('__')[1]):0)}">${u?`<img src="${u}" alt="${esc(g.name)}" draggable="false">`:`<span>${esc(g.name)}</span>`}</div>`
  }).join('')}</div>`;
 }
 function studioView(){
