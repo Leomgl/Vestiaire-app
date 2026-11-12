@@ -28,7 +28,7 @@ const dateNow=()=>new Date().toISOString();
 const formatDate=d=>d?new Intl.DateTimeFormat('fr-FR',{dateStyle:'medium'}).format(new Date(d)):'';
 const now=new Date();
 let db=null,view='home',garments=[],outfits=[],plans=[],prefs={id:'main',mannequinId:null,lastBackupAt:null},media=new Map(),imageURLs=new Map();
-let selectedCategory='all',query='',selectedOccasion='all',selectedStyle='all',selectedSeason='all',selectedMaterial='all',selectedColor='all',selectedAvailability='all',suggestOccasion='Restaurant',studioSlot='top',studioQuery='',studioPickerOpen=false,draft={},editingOutfit=null,variationSource=null,working=false;
+let selectedCategory='all',query='',selectedOccasion='all',selectedStyle='all',selectedSeason='all',selectedMaterial='all',selectedColor='all',selectedAvailability='all',suggestOccasion='Restaurant',studioSlot='top',studioQuery='',studioPickerOpen=false,studioSelectionConfirmed=false,draft={},editingOutfit=null,variationSource=null,working=false;
 let gesture=null,activeLayerKey='top',showCalibrationMarkers=false;
 const slotOfKey=key=>typeof key==='string'&&/^(top|bottom|outerwear|footwear|accessory)(?:__[2-8])?$/.test(key)?key.split('__')[0]:null;
 const layerKeys=slot=>Object.keys(draft).filter(key=>slotOfKey(key)===slot&&draft[key]);
@@ -169,17 +169,19 @@ function stageHTML(){
  const murl=urlFor(prefs.mannequinId),reference=referenceEnabled();
  const selected=draft[activeLayerKey],selectedGarment=selected&&garments.find(g=>g.id===selected.garmentId);
  const selectedLayout=selectedGarment&&layoutFor(selectedGarment);
- const tools=selectedGarment?`<div class="stage-selection-tools" style="left:${clamp(selected.x+selectedLayout.w*(selected.scale??1)/2,12,88)}%;top:${clamp(selected.y-selectedLayout.h*(selected.scale??1)/2,7,94)}%" aria-label="Actions sur la pièce sélectionnée">
+ const tools=selectedGarment&&!studioSelectionConfirmed?`<div class="stage-selection-tools" style="left:${clamp(selected.x+selectedLayout.w*(selected.scale??1)/2,12,88)}%;top:${clamp(selected.y-selectedLayout.h*(selected.scale??1)/2,7,94)}%" aria-label="Actions sur la pièce sélectionnée">
+ <button type="button" data-act="confirm-piece" aria-label="Valider le placement de cette pièce" title="Valider le placement">✓</button>
  <button type="button" data-act="swap-piece" aria-label="Remplacer ce vêtement" title="Remplacer ce vêtement">⇄</button>
  <button type="button" data-act="remove-piece" aria-label="Retirer ce vêtement de la tenue" title="Retirer ce vêtement">×</button></div>`:'';
  const anchors=reference&&showCalibrationMarkers?Object.entries(FIT.LANDMARKS).map(([name,p])=>`<span class="calibration-anchor" style="left:${p.x}%;top:${p.y}%" title="${esc(name)}"><i></i><em>${esc(name)} · ${p.y}%</em></span>`).join(''):'';
  return `<div class="stage" id="stage"><div class="mannequin ${reference?'photo-reference':''}">${murl?`<img src="${murl}" alt="Mannequin personnel">`:fallbackMannequin}</div>${orderedEntries().map(([key,item])=>{
    const g=garments.find(x=>x.id===item.garmentId),def=layoutFor(g),u=urlFor(g.imageId),z=Math.round((FIT?.order(key,g,item)||def.z)*10);
-   return `<div class="piece-layer ${activeLayerKey===key?'selected':''}" data-drag-slot="${key}" style="left:${item.x}%;top:${item.y}%;width:${def.w}%;height:${def.h}%;--scale:${item.scale};z-index:${z};opacity:${clamp(item.opacity??1,.2,1)}">${u?`<img src="${u}" alt="${esc(g.name)}" draggable="false">`:`<span>${esc(g.name)}</span>`}</div>`;
+   return `<div class="piece-layer ${activeLayerKey===key&&!studioSelectionConfirmed?'selected':''}" data-drag-slot="${key}" style="left:${item.x}%;top:${item.y}%;width:${def.w}%;height:${def.h}%;--scale:${item.scale};z-index:${z};opacity:${clamp(item.opacity??1,.2,1)}">${u?`<img src="${u}" alt="${esc(g.name)}" draggable="false">`:`<span>${esc(g.name)}</span>`}</div>`;
  }).join('')}${tools}${anchors}</div>`;
 }
 function studioView(){
  const selected=draft[activeLayerKey],candidates=studioCandidates();
+ const slotPicker=`<div class="studio-inline-zones"><span class="studio-inline-label">CHOISIR UNE ZONE</span><div class="studio-inline-zone-buttons">${Object.entries(SLOTS).map(([slot,def])=>`<button type="button" class="slot-btn ${studioSlot===slot?'selected':''}" data-slot="${slot}"><strong>${def.sign}</strong>${esc(def.label)}</button>`).join('')}</div></div>`;
  const pickerHTML=studioPickerOpen?`<div class="studio-picker-backdrop" data-act="close-studio-picker"></div>
  <section class="studio-picker-sheet" role="dialog" aria-modal="true" aria-label="Choisir un vêtement">
  <div class="studio-picker-header"><div><div class="eyebrow">DRESSING RAPIDE</div><h2>${selected?'Remplacer une pièce':'Ajouter une pièce'}</h2></div><button type="button" class="studio-picker-close" data-act="close-studio-picker" aria-label="Fermer le choix de vêtements">×</button></div>
@@ -191,16 +193,15 @@ function studioView(){
  </section>`:'';
  const unavailable=garments.filter(g=>g.category===studioSlot&&!isAvailable(g)&&g.id!==selected?.garmentId).length;
  return heading('LE CŒUR DU VESTIAIRE','Studio de tenues','Compose ton look sur un mannequin de référence. Sélectionne une zone, ajoute une pièce, puis ajuste son placement.',button('new-look','Nouvelle tenue','ghost')+(editingOutfit?button('make-variant','Dupliquer en variante','soft'):'')+button('save-look','Enregistrer la tenue'))+
- `<div class="studio-grid"><section class="studio-stage-shell"><div class="stage-label"><span>CANEVAS · ${editingOutfit?'MODIFICATION':'NOUVELLE TENUE'}</span><span>${pieceEntries().length} PIÈCE(S)</span></div>${stageHTML()}<div class="stage-footnote">Un doigt pour déplacer · Deux doigts pour agrandir ou réduire</div>
+ `<div class="studio-grid"><section class="studio-stage-shell"><div class="stage-label"><span>CANEVAS · ${editingOutfit?'MODIFICATION':'NOUVELLE TENUE'}</span><span>${pieceEntries().length} PIÈCE(S)</span></div>${slotPicker}${stageHTML()}<div class="stage-footnote">Un doigt pour déplacer · Deux doigts pour agrandir ou réduire</div>
  <div class="studio-stage-actions">${button('open-studio-picker',selected?'⇄ Choisir / remplacer':'＋ Ajouter une pièce','soft small')}${button('save-look','Enregistrer la tenue','small')}</div></section>
- <section class="editor-panel"><div class="eyebrow">01 · STRUCTURE</div><h3>Choisis une zone</h3><p class="hint">Chaque catégorie se place automatiquement sur le mannequin.</p><div class="slot-picker">${Object.entries(SLOTS).map(([slot,def])=>`<button type="button" class="slot-btn ${studioSlot===slot?'selected':''}" data-slot="${slot}"><strong>${def.sign}</strong>${esc(def.label)}</button>`).join('')}</div>
- <div class="eyebrow" style="margin-top:23px">02 · PIÈCES DU DRESSING</div><div class="layer-selector">${layerKeys(studioSlot).map((key,i)=>`<button type="button" class="chip ${activeLayerKey===key?'active':''}" data-layer="${key}">Couche ${i+1}</button>`).join('')}${layerKeys(studioSlot).length<8?button('add-layer','＋ Superposer','small ghost'):''}</div><h3>${esc(SLOTS[studioSlot].label)}</h3>
+ <section class="editor-panel"><div class="eyebrow">01 · PIÈCES DU DRESSING</div><div class="layer-selector">${layerKeys(studioSlot).map((key,i)=>`<button type="button" class="chip ${activeLayerKey===key?'active':''}" data-layer="${key}">Couche ${i+1}</button>`).join('')}${layerKeys(studioSlot).length<8?button('add-layer','＋ Superposer','small ghost'):''}</div><h3>${esc(SLOTS[studioSlot].label)}</h3>
  <p class="hint">${candidates.length?`${candidates.length} pièce(s) proposée(s). Touche-en une pour l'ajouter.`:'Ajoute d’abord un vêtement disponible dans cette catégorie.'}${unavailable?` ${unavailable} pièce(s) masquée(s) (lavage, pressing ou hors saison).`:''}</p>
  <label class="studio-search-label" for="studio-search">Rechercher dans cette catégorie</label>
  <input class="input studio-search" id="studio-search" type="search" placeholder="Nom, matière, type…" value="${esc(studioQuery)}" autocomplete="off"><div class="studio-palette-count" data-studio-result-count>${candidates.length} pièce(s)</div>
  <div class="palette" data-studio-palette>${studioPaletteMarkup(candidates)}</div>
  ${!garments.length?`<div style="margin-top:16px">${button('load-demo','Charger des vêtements de démonstration','ghost block')}</div>`:''}
- <div class="eyebrow" style="margin-top:23px">03 · FINITIONS</div><h3>Position et échelle</h3>
+ <div class="eyebrow" style="margin-top:23px">02 · FINITIONS</div><h3>Position et échelle</h3>
  <div class="editor-control"><label for="piece-scale">Taille du vêtement <span id="scale-value">${Math.round((selected?.scale||1)*100)} %</span></label><input id="piece-scale" type="range" min="45" max="190" value="${Math.round((selected?.scale||1)*100)}" ${selected?'':'disabled'}></div>
  <div class="editor-actions">${referenceEnabled()?button('toggle-anchors',showCalibrationMarkers?'Masquer les repères':'Voir les repères','ghost small'):''}${button('center-piece','Recentrer','ghost small')}${button('auto-fit-piece','Recaler cette pièce','soft small')}${button('auto-fit-look','Recaler la tenue','soft small')}${button('front-piece','Devant','ghost small')}${button('back-piece','Derrière','ghost small')}${button('remove-piece','Retirer cette pièce','danger small')}${button('add-garment','＋ Nouveau vêtement','soft small')}</div>
  <div class="editor-control"><label for="piece-opacity">Opacité de la couche <span id="opacity-value">${Math.round((selected?.opacity??1)*100)} %</span></label><input id="piece-opacity" type="range" min="20" max="100" value="${Math.round((selected?.opacity??1)*100)}" ${selected?'':'disabled'}/></div><div class="notice" style="margin-top:22px">Chaque vêtement possède son propre emplacement. Si une veste cache le pull, baisse temporairement son opacité ou ajuste son ordre d’affichage.</div>
@@ -333,14 +334,14 @@ async function deleteGarment(id){const g=garments.find(x=>x.id===id);if(!g)retur
  await remove('garments',id);for(const o of outfits){let changed=false;for(const [slot,layer] of Object.entries(o.layers||{}))if(layer?.garmentId===id){o.layers[slot]=null;changed=true}if(changed){o.updatedAt=dateNow();await save('outfits',o)}}
  for(const [slot,l] of Object.entries(draft))if(l?.garmentId===id)draft[slot]=null;
  await reload();await pruneMedia();closeModal();render();toast('Vêtement supprimé.')}
-function place(slot,id){const g=garments.find(x=>x.id===id);if(!g||g.category!==slot||!isAvailable(g)){toast('Cette pièce est indisponible. Modifie son état dans le dressing.');return}
+function place(slot,id){studioSelectionConfirmed=false;const g=garments.find(x=>x.id===id);if(!g||g.category!==slot||!isAvailable(g)){toast('Cette pièce est indisponible. Modifie son état dans le dressing.');return}
  const key=slotOfKey(activeLayerKey)===slot?activeLayerKey:slot,def=layoutFor(g),old=draft[key];
  draft[key]={garmentId:id,x:old?.x??def.x,y:old?.y??def.y,scale:old?.scale??1,zAdjust:old?.zAdjust??0,opacity:old?.opacity??1};studioPickerOpen=false;render()}
-function setSlot(slot){if(!SLOTS[slot])return;studioSlot=slot;activeLayerKey=layerKeys(slot)[0]||slot;render()}
-function addLayer(){const n=Array.from({length:7},(_,i)=>i+2).find(i=>!draft[studioSlot+'__'+i]);if(!n){toast('Maximum 8 couches par zone.');return}activeLayerKey=studioSlot+'__'+n;render();toast('Sélectionne maintenant une pièce pour cette couche.')}
-function newLook(){studioQuery='';studioPickerOpen=false;draft=baseDraft();editingOutfit=null;variationSource=null;studioSlot='top';activeLayerKey='top';navigate('studio')}
-function editLook(id){const o=outfits.find(x=>x.id===id);if(!o)return;studioQuery='';studioPickerOpen=false;editingOutfit=id;variationSource=o.variantOf||null;draft={...baseDraft(),...structuredClone(o.layers)};studioSlot='top';activeLayerKey='top';navigate('studio')}
-function createVariant(id){const o=outfits.find(x=>x.id===id);if(!o)return;studioQuery='';studioPickerOpen=false;draft={...baseDraft(),...structuredClone(o.layers)};editingOutfit=null;variationSource=id;studioSlot='top';activeLayerKey='top';navigate('studio');toast('Variante créée : modifie le look, puis enregistre-le sous un nouveau nom.');}
+function setSlot(slot){if(!SLOTS[slot])return;studioSelectionConfirmed=false;studioSlot=slot;activeLayerKey=layerKeys(slot)[0]||slot;render()}
+function addLayer(){studioSelectionConfirmed=false;const n=Array.from({length:7},(_,i)=>i+2).find(i=>!draft[studioSlot+'__'+i]);if(!n){toast('Maximum 8 couches par zone.');return}activeLayerKey=studioSlot+'__'+n;render();toast('Sélectionne maintenant une pièce pour cette couche.')}
+function newLook(){studioSelectionConfirmed=false;studioQuery='';studioPickerOpen=false;draft=baseDraft();editingOutfit=null;variationSource=null;studioSlot='top';activeLayerKey='top';navigate('studio')}
+function editLook(id){const o=outfits.find(x=>x.id===id);if(!o)return;studioSelectionConfirmed=false;studioQuery='';studioPickerOpen=false;editingOutfit=id;variationSource=o.variantOf||null;draft={...baseDraft(),...structuredClone(o.layers)};studioSlot='top';activeLayerKey='top';navigate('studio')}
+function createVariant(id){const o=outfits.find(x=>x.id===id);if(!o)return;studioSelectionConfirmed=false;studioQuery='';studioPickerOpen=false;draft={...baseDraft(),...structuredClone(o.layers)};editingOutfit=null;variationSource=id;studioSlot='top';activeLayerKey='top';navigate('studio');toast('Variante créée : modifie le look, puis enregistre-le sous un nouveau nom.');}
 async function previewImage(layers=draft,imageOverrides=new Map(),garmentLookup=id=>garments.find(g=>g.id===id)){
  const w=600,h=750,canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
  const ctx=canvas.getContext('2d');if(!ctx)throw Error('Rendu indisponible');
@@ -560,6 +561,7 @@ document.addEventListener('click',async e=>{
    const pick=e.target.closest('[data-pick]');if(pick){place(studioSlot,pick.dataset.pick);return}
   const target=e.target.closest('[data-act]');if(!target)return;const action=target.dataset.act;
   if(action.startsWith('vestiaire-nexus-')){await window.VestiaireNexus?.action?.(action);return;}
+  if(action==='confirm-piece'){studioSelectionConfirmed=true;render();toast('Pièce validée. Enregistre la tenue pour conserver les modifications.');return;}
   if(action==='open-studio-picker'||action==='swap-piece'){studioPickerOpen=true;render();requestAnimationFrame(()=>$('studio-picker-search')?.focus());return;}
   if(action==='close-studio-picker'){studioPickerOpen=false;render();return;}
   if(action==='close-modal')closeModal();
@@ -646,7 +648,7 @@ document.addEventListener('pointerdown',e=>{
  if(!stage||!stage.contains(e.target)||(!layer&&!gesture)||gesture?.pointers.has(e.pointerId))return;
  if(!gesture){
   const slot=layer.dataset.dragSlot;if(!draft[slot])return;
-  activeLayerKey=slot;studioSlot=slotOfKey(slot);
+  activeLayerKey=slot;studioSlot=slotOfKey(slot);studioSelectionConfirmed=false;
   gesture={slot,el:layer,rect:stage.getBoundingClientRect(),pointers:new Map(),base:null};
  }
  if(gesture.pointers.size>=2)return;
