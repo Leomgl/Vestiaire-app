@@ -1,5 +1,5 @@
 'use strict';
-/* VESTIAIRE v0.6 — local wardrobe + opt-in NEXUS outfit suggestions. */
+/* VESTIAIRE v0.7 — tactile Studio + opt-in NEXUS outfit suggestions. */
 (()=>{
 const DB_NAME='vestiaire-local-v1',DB_VERSION=2;
 const STORES=['garments','outfits','media','prefs','plans'];
@@ -28,8 +28,8 @@ const dateNow=()=>new Date().toISOString();
 const formatDate=d=>d?new Intl.DateTimeFormat('fr-FR',{dateStyle:'medium'}).format(new Date(d)):'';
 const now=new Date();
 let db=null,view='home',garments=[],outfits=[],plans=[],prefs={id:'main',mannequinId:null,lastBackupAt:null},media=new Map(),imageURLs=new Map();
-let selectedCategory='all',query='',selectedOccasion='all',selectedStyle='all',selectedSeason='all',selectedMaterial='all',selectedColor='all',selectedAvailability='all',suggestOccasion='Restaurant',studioSlot='top',draft={},editingOutfit=null,variationSource=null,working=false;
-let dragged=null,activeLayerKey='top',showCalibrationMarkers=false;
+let selectedCategory='all',query='',selectedOccasion='all',selectedStyle='all',selectedSeason='all',selectedMaterial='all',selectedColor='all',selectedAvailability='all',suggestOccasion='Restaurant',studioSlot='top',studioQuery='',studioPickerOpen=false,draft={},editingOutfit=null,variationSource=null,working=false;
+let gesture=null,activeLayerKey='top',showCalibrationMarkers=false;
 const slotOfKey=key=>typeof key==='string'&&/^(top|bottom|outerwear|footwear|accessory)(?:__[2-8])?$/.test(key)?key.split('__')[0]:null;
 const layerKeys=slot=>Object.keys(draft).filter(key=>slotOfKey(key)===slot&&draft[key]);
 
@@ -114,6 +114,21 @@ function homeView(){
  ${recent?`<section style="margin-top:18px"><div class="section-head"><h2>Dernière tenue</h2>${button('open-looks','Voir les tenues','small ghost')}</div><div class="grid-cards">${outfitCard(recent)}</div></section>`:''}`;
 }
 function photo(id,klass=''){const u=urlFor(id);return u?`<img class="${klass}" src="${u}" alt="" loading="lazy">`:`<span aria-hidden="true">◈</span>`}
+
+const studioFold=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('fr');
+function searchableGarment(g){
+ const type=FIT?.guess(g);
+ return [g.name,g.brand,g.material,g.color,g.style,g.fit,g.subtype,g.fits?.category,
+  SLOTS[g.category]?.label,type,FIT?.TYPES?.[type]?.label].join(' ');
+}
+function studioCandidates(){
+ const selected=draft[activeLayerKey],needle=studioFold(studioQuery.trim());
+ return garments.filter(g=>g.category===studioSlot&&(isAvailable(g)||g.id===selected?.garmentId)&&studioFold(searchableGarment(g)).includes(needle));
+}
+function studioPaletteMarkup(items){
+ return items.length?items.map(g=>`<button type="button" class="palette-item ${draft[activeLayerKey]?.garmentId===g.id?'active':''`" data-pick="${g.id`">${photo(g.imageId)<span>${esc(g.name)</span><small>${esc(g.material||FIT?.TYPES?.[FIT?.guess(g)]?.label||SLOTS[g.category]?.label||'Vêtement')</small></button>`).join(''):
+  '<div class="studio-empty-palette">Aucune pièce correspondante. Essaie une autre recherche ou catégorie.</div>';
+}
 function garmentCard(g){return `<button type="button" class="item-card" data-act="edit-garment" data-id="${g.id}"><div class="item-photo ${g.imageId?'':'placeholder'}">${photo(g.imageId)}</div><div class="item-info"><strong>${esc(g.name)}</strong><p>${esc(SLOTS[g.category]?.label||g.category)} · ${esc(g.color||'Couleur non précisée')}</p>${!isAvailable(g)?`<span class="tag availability-tag">${esc(availabilityLabel(g.availability))}</span>`:''}${(g.occasions||[]).slice(0,2).map(x=>`<span class="tag">${esc(x)}</span>`).join('')}</div></button>`}
 function filterSelect(id,label,options,selected){
  return `<label class="filter-field"><span>${esc(label)}</span><select id="${id}" class="select"><option value="all">Tous</option>${options.map(([value,text])=>`<option value="${esc(value)}" ${value===selected?'selected':''}>${esc(text)}</option>`).join('')}</select></label>`;
@@ -129,7 +144,7 @@ function wardrobeView(){
   (selectedMaterial==='all'||g.material===selectedMaterial)&&
   (selectedColor==='all'||g.color===selectedColor)&&
   (selectedAvailability==='all'||(g.availability||'available')===selectedAvailability)&&
-  [g.name,g.color,g.brand,g.material,g.style,g.fit].join(' ').toLowerCase().includes(query.trim().toLocaleLowerCase('fr'))
+  studioFold(searchableGarment(g)).includes(studioFold(query.trim()))
  );
  return heading('GARDER · CLASSER · RETROUVER','Mon dressing','Toutes tes pièces, leurs caractéristiques et leur disponibilité.',button('add-garment','＋ Ajouter une pièce'))+
  `<div class="toolbar"><input class="input" id="search-wardrobe" type="search" value="${esc(query)}" placeholder="Rechercher un vêtement, une marque, une matière…"></div>
@@ -152,11 +167,16 @@ function referenceEnabled(){return Boolean(prefs.mannequinId&&prefs.mannequinPro
 function layoutFor(g){return FIT?.profile(g,referenceEnabled()?FIT.REFERENCE_MODE:null)||SLOTS[g?.category]||SLOTS.accessory}
 function stageHTML(){
  const murl=urlFor(prefs.mannequinId),reference=referenceEnabled();
+ const selected=draft[activeLayerKey],selectedGarment=selected&&garments.find(g=>g.id===selected.garmentId);
+ const selectedLayout=selectedGarment&&layoutFor(selectedGarment);
+ const tools=selectedGarment?`<div class="stage-selection-tools" style="left:${clamp(selected.x+selectedLayout.w*(selected.scale??1)/2,12,88)`%;top:${clamp(selected.y-selectedLayout.h*(selected.scale??1)/2,7,94)`%" aria-label="Actions sur la pièce sélectionnée">
+  <button type="button" data-act="swap-piece" aria-label="Remplacer ce vêtement" title="Remplacer ce vêtement">⇄</button>
+  <button type="button" data-act="remove-piece" aria-label="Retirer ce vêtement de la tenue" title="Retirer ce vêtement">×</button></div>`:'';
  const anchors=reference&&showCalibrationMarkers?Object.entries(FIT.LANDMARKS).map(([name,p])=>`<span class="calibration-anchor" style="left:${p.x}%;top:${p.y}%" title="${esc(name)}"><i></i><em>${esc(name)} · ${p.y}%</em></span>`).join(''):'';
  return `<div class="stage" id="stage"><div class="mannequin ${reference?'photo-reference':''}">${murl?`<img src="${murl}" alt="Mannequin personnel">`:fallbackMannequin}</div>${orderedEntries().map(([key,item])=>{
    const g=garments.find(x=>x.id===item.garmentId),def=layoutFor(g),u=urlFor(g.imageId),z=Math.round((FIT?.order(key,g,item)||def.z)*10);
    return `<div class="piece-layer ${activeLayerKey===key?'selected':''}" data-drag-slot="${key}" style="left:${item.x}%;top:${item.y}%;width:${def.w}%;height:${def.h}%;--scale:${item.scale};z-index:${z};opacity:${clamp(item.opacity??1,.2,1)}">${u?`<img src="${u}" alt="${esc(g.name)}" draggable="false">`:`<span>${esc(g.name)}</span>`}</div>`;
- }).join('')}${anchors}</div>`;
+ }).join('')}${tools}${anchors}</div>`;
 }
 function studioView(){
  const selected=draft[activeLayerKey];const candidates=garments.filter(g=>g.category===studioSlot&&(isAvailable(g)||g.id===selected?.garmentId));
@@ -609,6 +629,6 @@ Object.assign(window,{VESTIAIRE_LINK_API:{
  state:()=>({outfits,garments}),getPrefs:()=>prefs,
  savePrefs:async patch=>{prefs={...prefs,...patch};await save('prefs',prefs);render();},
  toast,esc,render,navigate,editLook
-},VESTIAIRE_DEBUG:{version:'0.6',getState:()=>({garments:structuredClone(garments),outfits:structuredClone(outfits),plans:structuredClone(plans),prefs:structuredClone(prefs)})}});
+},VESTIAIRE_DEBUG:{version:'0.7',getState:()=>({garments:structuredClone(garments),outfits:structuredClone(outfits),plans:structuredClone(plans),prefs:structuredClone(prefs)})}});
 draft=baseDraft();init();
 })();
