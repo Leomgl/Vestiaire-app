@@ -34,4 +34,4 @@ La feuille `v02.css` et `app.js` bénéficient d'un nouveau paramètre de versio
 Ne pas réimporter d'anciennes données pour simplement annuler l'interface : rétablir les commits `app.js`, `v02.css`, `index.html`, `sw.js` de V0.6, republier et laisser le service worker migrer le cache. Les tenues et fiches restent intactes car aucune migration n'est exécutée.
 
 ## Statut
-Changement préparé en PR pour revue ; ne pas marquer « Terminé » dans FORGE avant recette Safari/iPhone.
+Code de la PR #1 fusionné dans `main` (`54e1a730dc496288c5392b34873e5ed47a5a7f35`) après réussite des tests GitHub Actions. Recette Safari/iPhone encore à effectuer ; FORGE #11 reste En cours.
