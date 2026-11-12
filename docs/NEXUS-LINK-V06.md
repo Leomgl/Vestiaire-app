@@ -1,5 +1,7 @@
 # VESTIAIRE V0.6 — NEXUS LINK, suggestions de tenues
 
+> Documentation de la **première version**. Le plafond historique de 24 tenues décrit plus bas est remplacé par les lots chiffrés complets V0.7.1 avec Nexus V0.21.8. Voir [STUDIO-V071-NEXUS-CATALOG.md](STUDIO-V071-NEXUS-CATALOG.md).
+
 > Code GitHub et Worker de diffusion mis à jour le 11/11/2026. Tests automatisés en place. Validation de bout en bout sur deux PWA iPhone encore nécessaire.
 > Référence NEXUS : https://github.com/Leomgl/nexus-app/blob/main/docs/VESTIAIRE-V021.md
 
