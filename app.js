@@ -1,5 +1,5 @@
 'use strict';
-/* VESTIAIRE v0.7 — tactile Studio + opt-in NEXUS outfit suggestions. */
+/* VESTIAIRE v0.7.1 — tactile Studio + opt-in NEXUS outfit suggestions. */
 (()=>{
 const DB_NAME='vestiaire-local-v1',DB_VERSION=2;
 const STORES=['garments','outfits','media','prefs','plans'];
@@ -691,6 +691,6 @@ Object.assign(window,{VESTIAIRE_LINK_API:{
  state:()=>({outfits,garments}),getPrefs:()=>prefs,
  savePrefs:async patch=>{prefs={...prefs,...patch};await save('prefs',prefs);render();},
  toast,esc,render,navigate,editLook
-},VESTIAIRE_DEBUG:{version:'0.7',getState:()=>({garments:structuredClone(garments),outfits:structuredClone(outfits),plans:structuredClone(plans),prefs:structuredClone(prefs)})}});
+},VESTIAIRE_DEBUG:{version:'0.7.1',getState:()=>({garments:structuredClone(garments),outfits:structuredClone(outfits),plans:structuredClone(plans),prefs:structuredClone(prefs)})}});
 draft=baseDraft();init();
 })();
