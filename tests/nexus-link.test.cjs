@@ -39,7 +39,7 @@ test('catalog batches every outfit, with encrypted payload-safe pages, no omitte
  assert.ok(r.pages.flat().every(x=>!Object.hasOwn(x,'thumbnailId')));
 });
 test('partial encrypted send preserves a new revision for safe retry',async()=>{
- const {webcrypto}=require('node:crypto');global.crypto=global.crypto||webcrypto;
+
  const m=instance(),pair={id:'pair',sourceApp:'vestiaire',scopes:['outfit_catalog']};
  const outfits=Array.from({length:51},(_,i)=>({id:'look-'+i,name:'Look '+i,
   occasion:'Casual',style:'Classique',layers:{top:{garmentId:'shirt'}}}));
@@ -70,8 +70,8 @@ test('only valid Vestiaire pairing is accepted and source app sends no calendar 
  const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
  const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
  assert.match(html,/nexus-link-core\.js\?v=0600/);
- assert.match(html,/vestiaire-nexus-v06\.js\?v=0600/);
- assert.match(sw,/vestiaire-nexus-v06\.js\?v=0600/);
+ assert.match(html,/vestiaire-nexus-v06\.js\?v=0610/);
+ assert.match(sw,/vestiaire-nexus-v06\.js\?v=0610/);
  const edge=fs.readFileSync(path.join(root,'edge-web/worker.js'),'utf8');
  assert.match(edge,/nexus-app-api\.q9pfwtztsc\.workers\.dev/);
  assert.match(edge,/\/vestiaire-nexus-v06\.js/);
