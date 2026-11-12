@@ -96,7 +96,7 @@ function render(){
  $('view-root').innerHTML=routes[view]();
  if(view==='settings')refreshStorageStatus();
 }
-function navigate(target){if(!['home','wardrobe','studio','looks','planning','settings'].includes(target))return;view=target;render();window.scrollTo({top:0,behavior:'instant'})}
+function navigate(target){if(!['home','wardrobe','studio','looks','planning','settings'].includes(target))return;if(target!=='studio')studioPickerOpen=false;view=target;render();window.scrollTo({top:0,behavior:'instant'})}
 function heading(kicker,title,description,buttons=''){return `<div class="view-header"><div><div class="eyebrow">${esc(kicker)}</div><h1>${esc(title)}</h1><p>${esc(description)}</p></div>${buttons?`<div class="actions">${buttons}</div>`:''}</div>`}
 const button=(act,title,kind='')=>`<button type="button" class="btn ${kind}" data-act="${act}">${title}</button>`;
 function homeView(){
@@ -335,12 +335,12 @@ async function deleteGarment(id){const g=garments.find(x=>x.id===id);if(!g)retur
  await reload();await pruneMedia();closeModal();render();toast('Vêtement supprimé.')}
 function place(slot,id){const g=garments.find(x=>x.id===id);if(!g||g.category!==slot||!isAvailable(g)){toast('Cette pièce est indisponible. Modifie son état dans le dressing.');return}
  const key=slotOfKey(activeLayerKey)===slot?activeLayerKey:slot,def=layoutFor(g),old=draft[key];
- draft[key]={garmentId:id,x:old?.x??def.x,y:old?.y??def.y,scale:old?.scale??1,zAdjust:old?.zAdjust??0,opacity:old?.opacity??1};render()}
+ draft[key]={garmentId:id,x:old?.x??def.x,y:old?.y??def.y,scale:old?.scale??1,zAdjust:old?.zAdjust??0,opacity:old?.opacity??1};studioPickerOpen=false;render()}
 function setSlot(slot){if(!SLOTS[slot])return;studioSlot=slot;activeLayerKey=layerKeys(slot)[0]||slot;render()}
 function addLayer(){const n=Array.from({length:7},(_,i)=>i+2).find(i=>!draft[studioSlot+'__'+i]);if(!n){toast('Maximum 8 couches par zone.');return}activeLayerKey=studioSlot+'__'+n;render();toast('Sélectionne maintenant une pièce pour cette couche.')}
-function newLook(){draft=baseDraft();editingOutfit=null;variationSource=null;studioSlot='top';activeLayerKey='top';navigate('studio')}
-function editLook(id){const o=outfits.find(x=>x.id===id);if(!o)return;editingOutfit=id;variationSource=o.variantOf||null;draft={...baseDraft(),...structuredClone(o.layers)};studioSlot='top';activeLayerKey='top';navigate('studio')}
-function createVariant(id){const o=outfits.find(x=>x.id===id);if(!o)return;draft={...baseDraft(),...structuredClone(o.layers)};editingOutfit=null;variationSource=id;studioSlot='top';activeLayerKey='top';navigate('studio');toast('Variante créée : modifie le look, puis enregistre-le sous un nouveau nom.');}
+function newLook(){studioQuery='';studioPickerOpen=false;draft=baseDraft();editingOutfit=null;variationSource=null;studioSlot='top';activeLayerKey='top';navigate('studio')}
+function editLook(id){const o=outfits.find(x=>x.id===id);if(!o)return;studioQuery='';studioPickerOpen=false;editingOutfit=id;variationSource=o.variantOf||null;draft={...baseDraft(),...structuredClone(o.layers)};studioSlot='top';activeLayerKey='top';navigate('studio')}
+function createVariant(id){const o=outfits.find(x=>x.id===id);if(!o)return;studioQuery='';studioPickerOpen=false;draft={...baseDraft(),...structuredClone(o.layers)};editingOutfit=null;variationSource=id;studioSlot='top';activeLayerKey='top';navigate('studio');toast('Variante créée : modifie le look, puis enregistre-le sous un nouveau nom.');}
 async function previewImage(layers=draft,imageOverrides=new Map(),garmentLookup=id=>garments.find(g=>g.id===id)){
  const w=600,h=750,canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
  const ctx=canvas.getContext('2d');if(!ctx)throw Error('Rendu indisponible');
@@ -560,6 +560,8 @@ document.addEventListener('click',async e=>{
    const pick=e.target.closest('[data-pick]');if(pick){place(studioSlot,pick.dataset.pick);return}
   const target=e.target.closest('[data-act]');if(!target)return;const action=target.dataset.act;
   if(action.startsWith('vestiaire-nexus-')){await window.VestiaireNexus?.action?.(action);return;}
+  if(action==='open-studio-picker'||action==='swap-piece'){studioPickerOpen=true;render();requestAnimationFrame(()=>$('studio-picker-search')?.focus());return;}
+  if(action==='close-studio-picker'){studioPickerOpen=false;render();return;}
   if(action==='close-modal')closeModal();
   else if(action==='open-studio')navigate('studio');
   else if(action==='open-looks')navigate('looks');
@@ -606,6 +608,14 @@ document.addEventListener('submit',async e=>{
  if(e.target.id==='plan-form'){e.preventDefault();try{await savePlan(e.target)}catch(err){error(err)}}
 });
 document.addEventListener('input',e=>{
+ if(e.target.id==='studio-search'||e.target.id==='studio-picker-search'){
+  studioQuery=e.target.value;
+  const list=studioCandidates(),markup=studioPaletteMarkup(list);
+  document.querySelectorAll('[data-studio-palette]').forEach(el=>{el.innerHTML=markup;});
+  document.querySelectorAll('[data-studio-result-count]').forEach(el=>{el.textContent=list.length+' pièce(s)';});
+  document.querySelectorAll('.studio-search').forEach(el=>{if(el!==e.target)el.value=studioQuery;});
+  return;
+ }
  if(e.target.id==='search-wardrobe'){query=e.target.value;const pos=e.target.selectionStart;render();const input=$('search-wardrobe');input?.focus();input?.setSelectionRange(pos,pos)}
  if(e.target.id==='piece-scale'&&draft[activeLayerKey]){draft[activeLayerKey].scale=clamp(Number(e.target.value)/100,.45,1.9);const layer=document.querySelector(`[data-drag-slot="${activeLayerKey}"]`);if(layer)layer.style.setProperty('--scale',draft[activeLayerKey].scale);$('scale-value').textContent=e.target.value+' %'}
   if(e.target.id==='piece-opacity'&&draft[activeLayerKey]){draft[activeLayerKey].opacity=clamp(Number(e.target.value)/100,.2,1);const layer=document.querySelector(`[data-drag-slot="${activeLayerKey}"]`);if(layer)layer.style.opacity=draft[activeLayerKey].opacity;$('opacity-value').textContent=e.target.value+' %'}
@@ -635,7 +645,7 @@ document.addEventListener('pointermove',e=>{
 });
 function endDrag(e){if(!dragged||e.pointerId!==dragged.pointerId)return;dragged=null;render()}
 document.addEventListener('pointerup',endDrag);document.addEventListener('pointercancel',endDrag);
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('modal-root')?.children.length)closeModal();else if(studioPickerOpen){studioPickerOpen=false;render()}}});
 window.addEventListener('pagehide',clearURLs);
 Object.assign(window,{VESTIAIRE_LINK_API:{
  state:()=>({outfits,garments}),getPrefs:()=>prefs,
