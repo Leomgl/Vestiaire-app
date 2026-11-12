@@ -126,7 +126,7 @@ function studioCandidates(){
  return garments.filter(g=>g.category===studioSlot&&(isAvailable(g)||g.id===selected?.garmentId)&&studioFold(searchableGarment(g)).includes(needle));
 }
 function studioPaletteMarkup(items){
- return items.length?items.map(g=>`<button type="button" class="palette-item ${draft[activeLayerKey]?.garmentId===g.id?'active':''`" data-pick="${g.id`">${photo(g.imageId)<span>${esc(g.name)</span><small>${esc(g.material||FIT?.TYPES?.[FIT?.guess(g)]?.label||SLOTS[g.category]?.label||'Vêtement')</small></button>`).join(''):
+ return items.length?items.map(g=>`<button type="button" class="palette-item ${draft[activeLayerKey]?.garmentId===g.id?'active':''}" data-pick="${g.id}">${photo(g.imageId)}<span>${esc(g.name)}</span><small>${esc(g.material||FIT?.TYPES?.[FIT?.guess(g)]?.label||SLOTS[g.category]?.label||'Vêtement')}</small></button>`).join(''):
   '<div class="studio-empty-palette">Aucune pièce correspondante. Essaie une autre recherche ou catégorie.</div>';
 }
 function garmentCard(g){return `<button type="button" class="item-card" data-act="edit-garment" data-id="${g.id}"><div class="item-photo ${g.imageId?'':'placeholder'}">${photo(g.imageId)}</div><div class="item-info"><strong>${esc(g.name)}</strong><p>${esc(SLOTS[g.category]?.label||g.category)} · ${esc(g.color||'Couleur non précisée')}</p>${!isAvailable(g)?`<span class="tag availability-tag">${esc(availabilityLabel(g.availability))}</span>`:''}${(g.occasions||[]).slice(0,2).map(x=>`<span class="tag">${esc(x)}</span>`).join('')}</div></button>`}
@@ -169,9 +169,9 @@ function stageHTML(){
  const murl=urlFor(prefs.mannequinId),reference=referenceEnabled();
  const selected=draft[activeLayerKey],selectedGarment=selected&&garments.find(g=>g.id===selected.garmentId);
  const selectedLayout=selectedGarment&&layoutFor(selectedGarment);
- const tools=selectedGarment?`<div class="stage-selection-tools" style="left:${clamp(selected.x+selectedLayout.w*(selected.scale??1)/2,12,88)`%;top:${clamp(selected.y-selectedLayout.h*(selected.scale??1)/2,7,94)`%" aria-label="Actions sur la pièce sélectionnée">
-  <button type="button" data-act="swap-piece" aria-label="Remplacer ce vêtement" title="Remplacer ce vêtement">⇄</button>
-  <button type="button" data-act="remove-piece" aria-label="Retirer ce vêtement de la tenue" title="Retirer ce vêtement">×</button></div>`:'';
+ const tools=selectedGarment?`<div class="stage-selection-tools" style="left:${clamp(selected.x+selectedLayout.w*(selected.scale??1)/2,12,88)}%;top:${clamp(selected.y-selectedLayout.h*(selected.scale??1)/2,7,94)}%" aria-label="Actions sur la pièce sélectionnée">
+ <button type="button" data-act="swap-piece" aria-label="Remplacer ce vêtement" title="Remplacer ce vêtement">⇄</button>
+ <button type="button" data-act="remove-piece" aria-label="Retirer ce vêtement de la tenue" title="Retirer ce vêtement">×</button></div>`:'';
  const anchors=reference&&showCalibrationMarkers?Object.entries(FIT.LANDMARKS).map(([name,p])=>`<span class="calibration-anchor" style="left:${p.x}%;top:${p.y}%" title="${esc(name)}"><i></i><em>${esc(name)} · ${p.y}%</em></span>`).join(''):'';
  return `<div class="stage" id="stage"><div class="mannequin ${reference?'photo-reference':''}">${murl?`<img src="${murl}" alt="Mannequin personnel">`:fallbackMannequin}</div>${orderedEntries().map(([key,item])=>{
    const g=garments.find(x=>x.id===item.garmentId),def=layoutFor(g),u=urlFor(g.imageId),z=Math.round((FIT?.order(key,g,item)||def.z)*10);
@@ -182,23 +182,23 @@ function studioView(){
  const selected=draft[activeLayerKey],candidates=studioCandidates();
  const pickerHTML=studioPickerOpen?`<div class="studio-picker-backdrop" data-act="close-studio-picker"></div>
  <section class="studio-picker-sheet" role="dialog" aria-modal="true" aria-label="Choisir un vêtement">
- <div class="studio-picker-header"><div><div class="eyebrow">DRESSING RAPIDE</div><h2>${(selected?'Remplacer une pièce':'Ajouter une pièce')`</h2></div><button type="button" class="studio-picker-close" data-act="close-studio-picker" aria-label="Fermer le choix de vêtements">×</button></div>
- <label class="studio-search-label" for="studio-picker-search">Rechercher un vêtement</label><input id="studio-picker-search" class="input studio-search" type="search" placeholder="Nom, matière, type, marque…" value="${esc(studioQuery)`" autocomplete="off">
- <div class="studio-picker-slots">${Object.entries(SLOTS).map(([slot,def])=>`<button type="button" class="chip ${studioSlot===slot?'active':''`" data-slot="${slot`">${esc(def.label)</button>`).join('')}</div>
- <div class="studio-picker-meta"><span data-studio-result-count>${candidates.length pièce(s)</span>${(layerKeys(studioSlot).length<8?button('add-layer','＋ Superposer','small ghost'):'')</div>
- <div class="studio-picker-list" data-studio-palette>${studioPaletteMarkup(candidates)</div>
- <div class="studio-picker-bottom">${button('add-garment','＋ Nouveau vêtement','soft small')</div>
+ <div class="studio-picker-header"><div><div class="eyebrow">DRESSING RAPIDE</div><h2>${selected?'Remplacer une pièce':'Ajouter une pièce'}</h2></div><button type="button" class="studio-picker-close" data-act="close-studio-picker" aria-label="Fermer le choix de vêtements">×</button></div>
+ <label class="studio-search-label" for="studio-picker-search">Rechercher un vêtement</label><input id="studio-picker-search" class="input studio-search" type="search" placeholder="Nom, matière, type, marque…" value="${esc(studioQuery)}" autocomplete="off">
+ <div class="studio-picker-slots">${Object.entries(SLOTS).map(([slot,def])=>`<button type="button" class="chip ${studioSlot===slot?'active':''}" data-slot="${slot}">${esc(def.label)}</button>`).join('')}</div>
+ <div class="studio-picker-meta"><span data-studio-result-count>${candidates.length} pièce(s)</span>${layerKeys(studioSlot).length<8?button('add-layer','＋ Superposer','small ghost'):''}</div>
+ <div class="studio-picker-list" data-studio-palette>${studioPaletteMarkup(candidates)}</div>
+ <div class="studio-picker-bottom">${button('add-garment','＋ Nouveau vêtement','soft small')}</div>
  </section>`:'';
-
  const unavailable=garments.filter(g=>g.category===studioSlot&&!isAvailable(g)&&g.id!==selected?.garmentId).length;
  return heading('LE CŒUR DU VESTIAIRE','Studio de tenues','Compose ton look sur un mannequin de référence. Sélectionne une zone, ajoute une pièce, puis ajuste son placement.',button('new-look','Nouvelle tenue','ghost')+(editingOutfit?button('make-variant','Dupliquer en variante','soft'):'')+button('save-look','Enregistrer la tenue'))+
  `<div class="studio-grid"><section class="studio-stage-shell"><div class="stage-label"><span>CANEVAS · ${editingOutfit?'MODIFICATION':'NOUVELLE TENUE'}</span><span>${pieceEntries().length} PIÈCE(S)</span></div>${stageHTML()}<div class="stage-footnote">Un doigt pour déplacer · Deux doigts pour agrandir ou réduire</div>
- <div class="studio-stage-actions">${button('open-studio-picker',selected?'⇄ Choisir / remplacer':'＋ Ajouter une pièce','soft small')${button('save-look','Enregistrer la tenue','small')</div></section>
+ <div class="studio-stage-actions">${button('open-studio-picker',selected?'⇄ Choisir / remplacer':'＋ Ajouter une pièce','soft small')}${button('save-look','Enregistrer la tenue','small')}</div></section>
  <section class="editor-panel"><div class="eyebrow">01 · STRUCTURE</div><h3>Choisis une zone</h3><p class="hint">Chaque catégorie se place automatiquement sur le mannequin.</p><div class="slot-picker">${Object.entries(SLOTS).map(([slot,def])=>`<button type="button" class="slot-btn ${studioSlot===slot?'selected':''}" data-slot="${slot}"><strong>${def.sign}</strong>${esc(def.label)}</button>`).join('')}</div>
  <div class="eyebrow" style="margin-top:23px">02 · PIÈCES DU DRESSING</div><div class="layer-selector">${layerKeys(studioSlot).map((key,i)=>`<button type="button" class="chip ${activeLayerKey===key?'active':''}" data-layer="${key}">Couche ${i+1}</button>`).join('')}${layerKeys(studioSlot).length<8?button('add-layer','＋ Superposer','small ghost'):''}</div><h3>${esc(SLOTS[studioSlot].label)}</h3>
  <p class="hint">${candidates.length?`${candidates.length} pièce(s) proposée(s). Touche-en une pour l'ajouter.`:'Ajoute d’abord un vêtement disponible dans cette catégorie.'}${unavailable?` ${unavailable} pièce(s) masquée(s) (lavage, pressing ou hors saison).`:''}</p>
- <label class="studio-search-label" for="studio-search">Rechercher dans cette catégorie</label><input class="input studio-search" id="studio-search" type="search" placeholder="Nom, matière, type…" value="${esc(studioQuery)`" autocomplete="off"><div class="studio-palette-count" data-studio-result-count>${candidates.length pièce(s)</div>
- <div class="palette" data-studio-palette>${studioPaletteMarkup(candidates)</div>
+ <label class="studio-search-label" for="studio-search">Rechercher dans cette catégorie</label>
+ <input class="input studio-search" id="studio-search" type="search" placeholder="Nom, matière, type…" value="${esc(studioQuery)}" autocomplete="off"><div class="studio-palette-count" data-studio-result-count>${candidates.length} pièce(s)</div>
+ <div class="palette" data-studio-palette>${studioPaletteMarkup(candidates)}</div>
  ${!garments.length?`<div style="margin-top:16px">${button('load-demo','Charger des vêtements de démonstration','ghost block')}</div>`:''}
  <div class="eyebrow" style="margin-top:23px">03 · FINITIONS</div><h3>Position et échelle</h3>
  <div class="editor-control"><label for="piece-scale">Taille du vêtement <span id="scale-value">${Math.round((selected?.scale||1)*100)} %</span></label><input id="piece-scale" type="range" min="45" max="190" value="${Math.round((selected?.scale||1)*100)}" ${selected?'':'disabled'}></div>
