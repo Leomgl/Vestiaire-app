@@ -21,13 +21,44 @@ test('shares only sanitized outfit metadata: never garment photos, mannequin or 
  assert.equal(summary[1].available,false);
  for(const row of summary){assert.deepEqual(Object.keys(row).sort(),['available','id','name','occasion','style','updatedAt','warmth'].sort());assert.ok(!JSON.stringify(row).includes('Confidentiel'));assert.ok(!JSON.stringify(row).includes('private-photo'));}
 });
-test('catalog stays under encrypted relay payload limit and caps the number of looks',()=>{
+test('catalog batches every outfit, with encrypted payload-safe pages, no omitted looks',()=>{
  const m=instance();
- const outfits=Array.from({length:60},(_,i)=>({id:'outfit-'+i,name:'Belle tenue '+String(i).repeat(120),
+ const outfits=Array.from({length:81},(_,i)=>({id:'outfit-'+i,name:'Belle tenue '+String(i).repeat(120),
   occasion:'Restaurant',style:'Classique',updatedAt:'2026-11-11',layers:{top:{garmentId:'shirt'}}}));
  const r=m.catalog({outfits,garments:[{id:'shirt',availability:'available',category:'top'}]});
- assert.ok(r.looks.length<=24);assert.equal(r.total,60);assert.equal(r.omitted,60-r.looks.length);
- assert.ok(new TextEncoder().encode(JSON.stringify({type:'vestiaire.catalog.v1',sourceApp:'vestiaire',revision:1,looks:r.looks})).byteLength<=5500);
+ assert.equal(r.total,81);
+ assert.equal(r.pages.flat().length,81);
+ assert.ok(r.pages.length>=4);
+ assert.ok(r.pages.every(p=>p.length<=24));
+ for(const [i,page] of r.pages.entries()){
+  const payload={type:'vestiaire.catalog.page.v2',sourceApp:'vestiaire',revision:2,
+   batchId:'00000000-0000-4000-8000-000000000000',pageIndex:i,pageCount:r.pages.length,
+   total:81,sharedAt:'2026-11-12T14:00:00.000Z',looks:page};
+  assert.ok(new TextEncoder().encode(JSON.stringify(payload)).byteLength<=6000);
+ }
+ assert.ok(r.pages.flat().every(x=>!Object.hasOwn(x,'thumbnailId')));
+});
+test('partial encrypted send preserves a new revision for safe retry',async()=>{
+
+ const m=instance(),pair={id:'pair',sourceApp:'vestiaire',scopes:['outfit_catalog']};
+ const outfits=Array.from({length:51},(_,i)=>({id:'look-'+i,name:'Look '+i,
+  occasion:'Casual',style:'Classique',layers:{top:{garmentId:'shirt'}}}));
+ let prefs={nexusLink:{pair,revision:3,lastFingerprint:'',autoShare:false}},sent=[],attempt=0;
+ const api={getPrefs:()=>prefs,state:()=>({outfits,garments:[{id:'shirt',category:'top'}]}),
+  savePrefs:async patch=>{prefs={...prefs,...patch}},toast:()=>{},esc:x=>x};
+ m.attach(api);
+ window.NexusLinkCore={publish:async(p,job)=>{sent.push(job);if(attempt===0&&sent.length===2)throw Error('Temporary outage');}};
+ await m.send(true);
+ assert.equal(prefs.nexusLink.pendingRevision,4);
+ assert.equal(prefs.nexusLink.revision,3);
+ attempt=1;sent=[];
+ await m.send(true);
+ assert.equal(prefs.nexusLink.revision,5);
+ assert.equal(prefs.nexusLink.pendingRevision,null);
+ assert.equal(sent.length,m.catalog(api.state()).pages.length);
+ assert.ok(sent.every(x=>x.revision===5&&x.scope==='outfit_catalog'));
+ assert.equal(sent.reduce((n,x)=>n+x.payload.looks.length,0),51);
+ assert.ok(sent.every(x=>Object.keys(x.payload).every(k=>!['thumbnailId','imageId','notes','garments'].includes(k))));
 });
 test('only valid Vestiaire pairing is accepted and source app sends no calendar data',async()=>{
  const m=instance();
@@ -39,8 +70,8 @@ test('only valid Vestiaire pairing is accepted and source app sends no calendar 
  const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
  const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
  assert.match(html,/nexus-link-core\.js\?v=0600/);
- assert.match(html,/vestiaire-nexus-v06\.js\?v=0600/);
- assert.match(sw,/vestiaire-nexus-v06\.js\?v=0600/);
+ assert.match(html,/vestiaire-nexus-v06\.js\?v=0610/);
+ assert.match(sw,/vestiaire-nexus-v06\.js\?v=0610/);
  const edge=fs.readFileSync(path.join(root,'edge-web/worker.js'),'utf8');
  assert.match(edge,/nexus-app-api\.q9pfwtztsc\.workers\.dev/);
  assert.match(edge,/\/vestiaire-nexus-v06\.js/);

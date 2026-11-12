@@ -3,6 +3,7 @@
  let api=null,busy=false,timer=null;
  const MAX_LOOKS=24;
  const MAX_PAYLOAD=5500;
+ const MAX_PAGES=200; // Relay supports up to 250 pending encrypted events per connection.
  const CORE=()=>window.NexusLinkCore;
  const safe=s=>api?.esc?.(s)??String(s??'').replace(/[&<>"']/g,'');
  const current=()=>api?.getPrefs?.().nexusLink||null;
@@ -23,22 +24,36 @@
     available,warmth,updatedAt:String(o.updatedAt||'').slice(0,30)};
   }).filter(x=>x.id&&x.name);
  }
+ // Each page is an independent encrypted event with a shared batch/revision.
+ const sampleMeta={type:'vestiaire.catalog.page.v2',sourceApp:'vestiaire',batchId:'00000000-0000-4000-8000-000000000000',
+  revision:1000000,pageIndex:999,pageCount:999,total:50000,sharedAt:'2026-11-12T22:22:22.222Z'};
+ const byteLength=value=>new TextEncoder().encode(JSON.stringify(value)).byteLength;
  function catalog(state){
   const rows=summarize(state.outfits||[],state.garments||[]);
-  const chosen=[];let omitted=0;
+  const pages=[[]];
   for(const row of rows){
-   if(chosen.length>=MAX_LOOKS){omitted++;continue;}
-   if(new TextEncoder().encode(JSON.stringify({type:'vestiaire.catalog.v1',sourceApp:'vestiaire',revision:1,looks:[...chosen,row]})).byteLength>MAX_PAYLOAD){omitted++;continue;}
-   chosen.push(row);
+   let page=pages[pages.length-1];
+   if(page.length>=MAX_LOOKS||byteLength({...sampleMeta,looks:[...page,row]})>MAX_PAYLOAD){
+    if(!page.length)throw Error('Une tenue contient trop de texte pour le relais chiffré.');
+    pages.push([]);page=pages[pages.length-1];
+   }
+   if(byteLength({...sampleMeta,looks:[row]})>MAX_PAYLOAD)throw Error('Une tenue dépasse la taille maximale du relais.');
+   page.push(row);
+   if(pages.length>MAX_PAGES)throw Error('Catalogue trop volumineux pour un envoi unique sécurisé.');
   }
-  return {looks:chosen,total:rows.length,omitted};
+  return {pages,total:rows.length};
+ }
+ async function fingerprint(pages){
+  const bytes=new TextEncoder().encode(JSON.stringify(pages));
+  const hash=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+  return [...hash].map(x=>x.toString(16).padStart(2,'0')).join('');
  }
  function settingsCard(){
   if(!api)return '';
-  const link=current(),c=connected(),preview=catalog(api.state());
+  const link=current(),c=connected();let preview;try{preview=catalog(api.state())}catch{preview={pages:[],total:api.state().outfits?.length||0,error:true}};
   return `<section class="panel"><div class="panel-header"><h2>🔗 NEXUS · Suggestions de tenues</h2></div>
    <p class="section-note">Transmets seulement le <strong>nom, l’occasion, le style et la disponibilité</strong> de tes tenues à NEXUS. Ni photos, ni mannequin, ni vêtements détaillés, ni agenda transmis à ce relais chiffré.</p>
-   ${c?`<div class="notice">Connecté à NEXUS · ${preview.looks.length} tenue(s) partageable(s)${preview.omitted?' · '+preview.omitted+' non incluses dans ce lot':''}. ${link.lastSentAt?'Dernier envoi : '+safe(new Date(link.lastSentAt).toLocaleString('fr-FR')):'Aucun envoi effectué.'}</div>
+   ${c?`<div class="notice">Connecté à NEXUS · ${preview.total} tenue(s) disponibles pour la liaison · ${preview.pages.length} lot(s) chiffré(s)${preview.error?' · catalogue trop volumineux':''}. ${link.lastSentAt?'Dernier envoi : '+safe(new Date(link.lastSentAt).toLocaleString('fr-FR')):'Aucun envoi effectué.'}</div>
      <label class="field" style="display:flex;flex-direction:row;align-items:center;gap:10px"><input type="checkbox" id="vestiaire-nexus-auto" ${link.autoShare?'checked':''}> <span>Envoyer les changements automatiquement quand Vestiaire est ouverte</span></label>
      <div class="settings-actions"><button type="button" class="btn soft" data-act="vestiaire-nexus-send">Envoyer mes tenues</button>
       <button type="button" class="btn ghost" data-act="vestiaire-nexus-revoke">Déconnecter</button></div>`:
@@ -69,20 +84,26 @@
  async function send(manual=false){
   if(busy||!connected())return;
   if(typeof navigator!=='undefined'&&navigator.onLine===false){if(manual)api.toast('Internet requis pour envoyer les tenues.');return;}
-  const link=current(),items=catalog(api.state());
-  const fingerprint=JSON.stringify(items.looks);
-  if(!manual&&fingerprint===link.lastFingerprint)return;
-  if(manual&&fingerprint===link.lastFingerprint){api.toast('Le catalogue est déjà à jour dans NEXUS.');return;}
   busy=true;
   try{
-   const revision=Math.min(1000000,(Number(link.revision)||0)+1);
-   await CORE().publish(link.pair,{entityId:'vestiaire:catalog',scope:'outfit_catalog',revision,
-    payload:{type:'vestiaire.catalog.v1',sourceApp:'vestiaire',revision,
-     looks:items.looks,sharedAt:new Date().toISOString(),total:items.total,omitted:items.omitted}});
-   await api.savePrefs({nexusLink:{...link,revision,lastFingerprint:fingerprint,lastSentAt:new Date().toISOString()}});
-   if(manual)api.toast(`${items.looks.length} tenue(s) envoyée(s) à NEXUS${items.omitted?' ('+items.omitted+' hors lot)':''}.`);
-  }catch(err){if(manual)api.toast('Envoi impossible : '+String(err.message||err).slice(0,80));console.warn('Vestiaire LINK send failed',err?.message);}
-  finally{busy=false;}
+   const items=catalog(api.state()),link=current(),fp=await fingerprint(items.pages);
+   if(fp===link.lastFingerprint){if(manual)api.toast('Toutes les tenues sont déjà à jour dans NEXUS.');return;}
+   // Reserve the revision before sending, so retries cannot mix different snapshots.
+   const revision=Math.max(Number(link.revision)||0,Number(link.pendingRevision)||0)+1;
+   if(!Number.isSafeInteger(revision)||revision>1000000)throw Error('Limite de révisions LINK atteinte.');
+   const batchId=crypto.randomUUID(),sharedAt=new Date().toISOString();
+   await api.savePrefs({nexusLink:{...link,pendingRevision:revision}});
+   for(let i=0;i<items.pages.length;i++){
+    await CORE().publish(link.pair,{entityId:'vestiaire:catalog:v2:page:'+i,scope:'outfit_catalog',revision,
+     payload:{type:'vestiaire.catalog.page.v2',sourceApp:'vestiaire',revision,batchId,
+      pageIndex:i,pageCount:items.pages.length,total:items.total,sharedAt,looks:items.pages[i]}});
+   }
+   await api.savePrefs({nexusLink:{...current(),revision,pendingRevision:null,lastFingerprint:fp,lastSentAt:new Date().toISOString()}});
+   if(manual)api.toast(items.total+' tenue(s) envoyée(s) en '+items.pages.length+' lot(s). Ouvre NEXUS puis appuie sur Recevoir.');
+  }catch(err){
+   if(manual)api.toast('Envoi incomplet : '+String(err.message||err).slice(0,80));
+   console.warn('Vestiaire LINK send failed',err?.message);
+  }finally{busy=false;}
  }
  async function toggle(enabled){
   if(!connected())return;

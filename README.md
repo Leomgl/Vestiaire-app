@@ -1,4 +1,11 @@
-# VESTIAIRE — V0.7 (12 novembre 2026) · Studio tactile
+# VESTIAIRE — V0.7.1 (12 novembre 2026) · Studio & catalogue NEXUS complet
+
+
+## V0.7.1 — Studio encore plus rapide et catalogue complet
+- ✓ Valider le vêtement sélectionné dans la barre du mannequin (sans sauvegarder toute la tenue) ; choix des cinq zones immédiatement au-dessus du canevas.
+- NEXUS LINK : suppression de la limite des 24 looks **avec Nexus V0.21.8**, envoi de tous les résumés par lots chiffrés (24 au maximum par lot) et reconstitution atomique côté Nexus.
+- Pas de transfert d'image ni de vêtement détaillé. Consentement et jumelage existants conservés ; export privé recommandé.
+- [Détails et recette iPhone](docs/STUDIO-V071-NEXUS-CATALOG.md).
 
 Application personnelle indépendante (PWA) pour dressing et studio de tenues, construite avec HTML/CSS/JS natifs, sans framework, sans abonnement, sans serveur de stockage et sans compte.
 
