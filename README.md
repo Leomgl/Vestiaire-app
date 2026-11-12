@@ -1,6 +1,16 @@
-# VESTIAIRE — V0.6 (11 novembre 2026) · NEXUS LINK
+# VESTIAIRE — V0.7 (12 novembre 2026) · Studio tactile
 
 Application personnelle indépendante (PWA) pour dressing et studio de tenues, construite avec HTML/CSS/JS natifs, sans framework, sans abonnement, sans serveur de stockage et sans compte.
+
+## V0.7 — Studio tactile sur iPhone (FORGE #11)
+
+- Glissement à un doigt et pincement à deux doigts sur les vêtements, avec limites d'échelle identiques au curseur existant (45–190 %).
+- Mini-barre d'actions proche de la pièce sélectionnée : **remplacer** ou **retirer de la tenue**, sans supprimer la fiche du dressing.
+- Sélecteur rapide en bas de l'écran : catégories, recherche immédiate par nom, marque, matière et type, superposition de calques et ajout de vêtement.
+- Les réglages avancés (opacité, ordre des couches, recalage, curseur) restent accessibles ; le moteur d'ancrage et les aperçus sont inchangés.
+- **Aucune migration IndexedDB, aucun changement de sauvegarde ni de contrat NEXUS**. Le catalogue NEXUS LINK utilise toujours l'ID, le nom, l'occasion, le style, la disponibilité et la chaleur des looks, jamais les photos.
+
+Voir [la recette du Studio V0.7](docs/STUDIO-TOUCH-V07.md). Tests techniques automatisés sur PR ; les gestes et le rendu doivent encore être validés sur Safari iPhone avant de fermer FORGE #11.
 
 ## V0.6 — NEXUS LINK, tenues contextuelles
 
