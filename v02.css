@@ -83,7 +83,7 @@
 /* STUDIO V0.7 — mobile-first direct manipulation and on-canvas edit actions */
 .studio-stage-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:10px 5px 2px}
 .studio-stage-actions .btn{flex:1;min-width:120px}
-.stage-selection-tools{position:absolute;z-index:1800;transform:translate(-50%,-50%);display:flex;gap:4px;padding:4px;background:#fffef9f5;border:1px solid #dfe7d9;border-radius:15px;box-shadow:0 6px 23px #1a281f38;touch-action:manipulation}
+.stage-selection-tools{position:absolute;z-index:12000;transform:translate(-50%,-50%);display:flex;gap:4px;padding:4px;background:#fffef9f5;border:1px solid #dfe7d9;border-radius:15px;box-shadow:0 6px 23px #1a281f38;touch-action:manipulation}
 .stage-selection-tools button{width:37px;height:37px;display:grid;place-items:center;border:0;border-radius:11px;background:#e9efe5;color:#314d35;font-size:25px;line-height:1;touch-action:manipulation}
 .stage-selection-tools [data-act="remove-piece"]{background:#fcf0ee;color:#ad534c;font-size:27px}
 .stage-selection-tools button:focus-visible{outline:2px solid #507e54}
