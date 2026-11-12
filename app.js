@@ -630,21 +630,59 @@ $('header-add').addEventListener('click',()=>garmentModal());
 $('restore-file').addEventListener('change',async e=>{try{await restoreBackup(e.target.files?.[0])}catch(err){error(err)}});
 $('fits-import-file').addEventListener('change',async e=>{try{if(!window.VESTIAIRE_FITS)throw Error('Importateur non chargé');await window.VESTIAIRE_FITS.preview(e.target.files?.[0])}catch(err){error(err)}finally{e.target.value=''}});
  $('mannequin-file').addEventListener('change',async e=>{try{await importMannequin(e.target.files?.[0])}catch(err){error(err)}finally{e.target.value=''}});
-// Pointer Events unify touch and mouse. Studio stores positions as percentages of the canvas.
+// Pointer gestures update the draft. Outfits persist only when explicitly saved.
+function gestureBaseline(){
+ if(!gesture)return;
+ const item=draft[gesture.slot],points=[...gesture.pointers.values()];
+ if(!item||!points.length)return;
+ const centerX=points.reduce((sum,p)=>sum+p.x,0)/points.length;
+ const centerY=points.reduce((sum,p)=>sum+p.y,0)/points.length;
+ const dist=points.length===2?Math.max(1,Math.hypot(points[0].x-points[1].x,points[0].y-points[1].y)):1;
+ gesture.base={x:item.x,y:item.y,scale:item.scale??1,centerX,centerY,dist};
+}
 document.addEventListener('pointerdown',e=>{
- const layer=e.target.closest('[data-drag-slot]');if(!layer||view!=='studio')return;
- const slot=layer.dataset.dragSlot;if(!draft[slot])return;
- activeLayerKey=slot;studioSlot=slotOfKey(slot);const stage=$('stage').getBoundingClientRect();dragged={pointerId:e.pointerId,slot,startX:e.clientX,startY:e.clientY,x:draft[slot].x,y:draft[slot].y,w:stage.width,h:stage.height,el:layer};
- layer.setPointerCapture(e.pointerId);e.preventDefault();
+ if(view!=='studio'||e.target.closest('button,[data-act]'))return;
+ const stage=$('stage'),layer=e.target.closest('[data-drag-slot]');
+ if(!stage||!stage.contains(e.target)||(!layer&&!gesture)||gesture?.pointers.has(e.pointerId))return;
+ if(!gesture){
+  const slot=layer.dataset.dragSlot;if(!draft[slot])return;
+  activeLayerKey=slot;studioSlot=slotOfKey(slot);
+  gesture={slot,el:layer,rect:stage.getBoundingClientRect(),pointers:new Map(),base:null};
+ }
+ if(gesture.pointers.size>=2)return;
+ gesture.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ stage.setPointerCapture(e.pointerId);
+ gestureBaseline();
+ e.preventDefault();
 });
 document.addEventListener('pointermove',e=>{
- if(!dragged||e.pointerId!==dragged.pointerId)return;
- const p=dragged,item=draft[p.slot];if(!item)return;
- item.x=clamp(p.x+(e.clientX-p.startX)/p.w*100,0,100);item.y=clamp(p.y+(e.clientY-p.startY)/p.h*100,0,100);
- p.el.style.left=item.x+'%';p.el.style.top=item.y+'%';
+ const g=gesture;if(!g?.pointers.has(e.pointerId))return;
+ g.pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ const item=draft[g.slot],points=[...g.pointers.values()],b=g.base,r=g.rect;
+ if(!item||!b||!r.width||!r.height)return;
+ const centerX=points.reduce((sum,p)=>sum+p.x,0)/points.length;
+ const centerY=points.reduce((sum,p)=>sum+p.y,0)/points.length;
+ if(points.length===2){
+  const dist=Math.max(1,Math.hypot(points[0].x-points[1].x,points[0].y-points[1].y));
+  item.scale=clamp(b.scale*dist/b.dist,.45,1.9);
+  const ratio=item.scale/b.scale;
+  item.x=clamp(b.x+(centerX-b.centerX)/r.width*100+(b.x-(b.centerX-r.left)/r.width*100)*(ratio-1),0,100);
+  item.y=clamp(b.y+(centerY-b.centerY)/r.height*100+(b.y-(b.centerY-r.top)/r.height*100)*(ratio-1),0,100);
+ }else{
+  item.x=clamp(b.x+(centerX-b.centerX)/r.width*100,0,100);
+  item.y=clamp(b.y+(centerY-b.centerY)/r.height*100,0,100);
+ }
+ g.el.style.left=item.x+'%';g.el.style.top=item.y+'%';g.el.style.setProperty('--scale',item.scale);
+ e.preventDefault();
 });
-function endDrag(e){if(!dragged||e.pointerId!==dragged.pointerId)return;dragged=null;render()}
-document.addEventListener('pointerup',endDrag);document.addEventListener('pointercancel',endDrag);
+function endGesture(e){
+ if(!gesture?.pointers.has(e.pointerId))return;
+ gesture.pointers.delete(e.pointerId);
+ if(gesture.pointers.size){gestureBaseline();return;}
+ gesture=null;render();
+}
+document.addEventListener('pointerup',endGesture);
+document.addEventListener('pointercancel',endGesture);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){if($('modal-root')?.children.length)closeModal();else if(studioPickerOpen){studioPickerOpen=false;render()}}});
 window.addEventListener('pagehide',clearURLs);
 Object.assign(window,{VESTIAIRE_LINK_API:{
