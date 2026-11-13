@@ -51,17 +51,20 @@
  function settingsCard(){
   if(!api)return '';
   const link=current(),c=connected();let preview;try{preview=catalog(api.state())}catch{preview={pages:[],total:api.state().outfits?.length||0,error:true}};
-  return `<section class="panel"><div class="panel-header"><h2>🔗 NEXUS · Suggestions de tenues</h2></div>
+  return `<section class="panel"><div class="panel-header"><h2>LINK · Partage des tenues</h2></div>
+   <p class="section-note">LINK centralise les autorisations et les contrôles. Tes photos et vêtements détaillés restent sur cet appareil.</p>
+   <div class="settings-actions"><a class="btn soft" href="https://link-app.q9pfwtztsc.workers.dev/" target="_blank" rel="noopener noreferrer">Gérer dans LINK ↗</a>
+   ${c?`<button type="button" class="btn soft" data-act="vestiaire-hub-send">Envoyer via LINK</button>`:''}</div>
+   <details class="vestiaire-legacy-link"><summary>Ancien jumelage NEXUS · dépannage et compatibilité</summary>
    <p class="section-note">Transmets seulement le <strong>nom, l’occasion, le style et la disponibilité</strong> de tes tenues à NEXUS. Ni photos, ni mannequin, ni vêtements détaillés, ni agenda transmis à ce relais chiffré.</p>
    ${c?`<div class="notice">Connecté à NEXUS · ${preview.total} tenue(s) disponibles pour la liaison · ${preview.pages.length} lot(s) chiffré(s)${preview.error?' · catalogue trop volumineux':''}. ${link.lastSentAt?'Dernier envoi : '+safe(new Date(link.lastSentAt).toLocaleString('fr-FR')):'Aucun envoi effectué.'}</div>
      <label class="field" style="display:flex;flex-direction:row;align-items:center;gap:10px"><input type="checkbox" id="vestiaire-nexus-auto" ${link.autoShare?'checked':''}> <span>Envoyer les changements automatiquement quand Vestiaire est ouverte</span></label>
      <div class="settings-actions"><button type="button" class="btn soft" data-act="vestiaire-nexus-send">Envoyer mes tenues</button>
-     <button type="button" class="btn soft" data-act="vestiaire-hub-send">Envoyer via LINK</button>
       <button type="button" class="btn ghost" data-act="vestiaire-nexus-revoke">Déconnecter</button></div>`:
     `<p class="section-note">1. Dans NEXUS → Réglages → Vestiaire, crée la liaison et copie le code privé.<br>2. Colle ce code ici pour autoriser le partage.</p>
      <label class="field"><span>Code de jumelage NEXUS (privé)</span><textarea id="vestiaire-nexus-code" rows="3" placeholder="NXL1.…" autocomplete="off"></textarea></label>
      <div class="settings-actions"><button type="button" class="btn soft" data-act="vestiaire-nexus-connect">Connecter à NEXUS</button></div>`}
-   <p class="section-note">NEXUS compare ensuite les tenues à ses propres événements et à la météo. Aucun calendrier n’entre dans Vestiaire et rien n’est sélectionné sans ton accord.</p>
+   <p class="section-note">NEXUS compare ensuite les tenues à ses propres événements et à la météo. Aucun calendrier n’entre dans Vestiaire et rien n’est sélectionné sans ton accord.</p></details>
    <label class="field"><span>Inscription au hub LINK · invitation Vestiaire uniquement</span><textarea id="vestiaire-hub-code" rows="2" placeholder="LHI1.vestiaire.…" autocomplete="off" spellcheck="false"></textarea></label>
    <div class="settings-actions"><button type="button" class="btn soft" data-act="vestiaire-hub-enroll">Inscrire Vestiaire à LINK</button></div>
    <p class="section-note">L'inscription ne publie aucune tenue. LINK centralise les permissions ; l'ancien jumelage reste actif.</p></section>`;
