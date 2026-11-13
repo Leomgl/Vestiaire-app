@@ -60,7 +60,10 @@
     `<p class="section-note">1. Dans NEXUS → Réglages → Vestiaire, crée la liaison et copie le code privé.<br>2. Colle ce code ici pour autoriser le partage.</p>
      <label class="field"><span>Code de jumelage NEXUS (privé)</span><textarea id="vestiaire-nexus-code" rows="3" placeholder="NXL1.…" autocomplete="off"></textarea></label>
      <div class="settings-actions"><button type="button" class="btn soft" data-act="vestiaire-nexus-connect">Connecter à NEXUS</button></div>`}
-   <p class="section-note">NEXUS compare ensuite les tenues à ses propres événements et à la météo. Aucun calendrier n’entre dans Vestiaire et rien n’est sélectionné sans ton accord.</p></section>`;
+   <p class="section-note">NEXUS compare ensuite les tenues à ses propres événements et à la météo. Aucun calendrier n’entre dans Vestiaire et rien n’est sélectionné sans ton accord.</p>
+   <label class="field"><span>Inscription au hub LINK · invitation Vestiaire uniquement</span><textarea id="vestiaire-hub-code" rows="2" placeholder="LHI1.vestiaire.…" autocomplete="off" spellcheck="false"></textarea></label>
+   <div class="settings-actions"><button type="button" class="btn soft" data-act="vestiaire-hub-enroll">Inscrire Vestiaire à LINK</button></div>
+   <p class="section-note">L'inscription ne publie aucune tenue. LINK centralise les permissions ; l'ancien jumelage reste actif.</p></section>`;
  }
  async function connect(){
   if(busy)return;
@@ -127,6 +130,15 @@
   timer=setTimeout(()=>{timer=null;void send();},2200);
  }
  async function action(kind){
+  if(kind==='vestiaire-hub-enroll'){
+   try{
+    if(!window.LinkHubOnboard)throw Error("MODULE_LINK_INDISPONIBLE");
+    const value=document.getElementById("vestiaire-hub-code")?.value||"";
+    await window.LinkHubOnboard.enroll(value);
+    api?.toast?.("Vestiaire inscrit dans LINK ; les tenues ne sont pas envoyées automatiquement.");
+   }catch(e){api?.toast?.("LINK : "+String(e.message||e).slice(0,100))}
+   return true;
+  }
   if(kind==='vestiaire-nexus-connect'){await connect();return true;}
   if(kind==='vestiaire-nexus-send'){await send(true);return true;}
   if(kind==='vestiaire-nexus-revoke'){await revoke();return true;}
