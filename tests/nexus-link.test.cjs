@@ -70,9 +70,31 @@ test('only valid Vestiaire pairing is accepted and source app sends no calendar 
  const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
  const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
  assert.match(html,/nexus-link-core\.js\?v=0600/);
- assert.match(html,/vestiaire-nexus-v06\.js\?v=0612/);
- assert.match(sw,/vestiaire-nexus-v06\.js\?v=0612/);
+ assert.match(html,/vestiaire-nexus-v06\.js\?v=0613/);
+ assert.match(sw,/vestiaire-nexus-v06\.js\?v=0613/);
  const edge=fs.readFileSync(path.join(root,'edge-web/worker.js'),'utf8');
  assert.match(edge,/nexus-app-api\.q9pfwtztsc\.workers\.dev/);
  assert.match(edge,/\/vestiaire-nexus-v06\.js/);
+});
+
+test('LINK enrollment click is routed, consumes invite on success and keeps it on failure',async()=>{
+ const app=fs.readFileSync(path.join(root,'app.js'),'utf8');
+ assert.match(app,/action\.startsWith\('vestiaire-nexus-'\)\|\|action\.startsWith\('vestiaire-hub-'\)/);
+ const m=instance();
+ const input={value:'LHI1.vestiaire.one-time-code'};
+ let lastCode='',notice='';
+ global.document={getElementById:id=>id==='vestiaire-hub-code'?input:null};
+ m.attach({toast:value=>{notice=value}});
+ try{
+  window.LinkHubOnboard={enroll:async code=>{lastCode=code}};
+  assert.equal(await m.action('vestiaire-hub-enroll'),true);
+  assert.equal(lastCode,'LHI1.vestiaire.one-time-code');
+  assert.equal(input.value,'');
+  assert.match(notice,/Vestiaire inscrit dans LINK/);
+  input.value='LHI1.vestiaire.bad-code';
+  window.LinkHubOnboard.enroll=async()=>{throw Error('INVITATION_REFUSÉE')};
+  assert.equal(await m.action('vestiaire-hub-enroll'),true);
+  assert.equal(input.value,'LHI1.vestiaire.bad-code');
+  assert.match(notice,/INVITATION_REFUSÉE/);
+ }finally{delete global.document}
 });
