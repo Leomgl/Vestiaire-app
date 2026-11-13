@@ -56,6 +56,7 @@
    ${c?`<div class="notice">Connecté à NEXUS · ${preview.total} tenue(s) disponibles pour la liaison · ${preview.pages.length} lot(s) chiffré(s)${preview.error?' · catalogue trop volumineux':''}. ${link.lastSentAt?'Dernier envoi : '+safe(new Date(link.lastSentAt).toLocaleString('fr-FR')):'Aucun envoi effectué.'}</div>
      <label class="field" style="display:flex;flex-direction:row;align-items:center;gap:10px"><input type="checkbox" id="vestiaire-nexus-auto" ${link.autoShare?'checked':''}> <span>Envoyer les changements automatiquement quand Vestiaire est ouverte</span></label>
      <div class="settings-actions"><button type="button" class="btn soft" data-act="vestiaire-nexus-send">Envoyer mes tenues</button>
+     <button type="button" class="btn soft" data-act="vestiaire-hub-send">Envoyer via LINK</button>
       <button type="button" class="btn ghost" data-act="vestiaire-nexus-revoke">Déconnecter</button></div>`:
     `<p class="section-note">1. Dans NEXUS → Réglages → Vestiaire, crée la liaison et copie le code privé.<br>2. Colle ce code ici pour autoriser le partage.</p>
      <label class="field"><span>Code de jumelage NEXUS (privé)</span><textarea id="vestiaire-nexus-code" rows="3" placeholder="NXL1.…" autocomplete="off"></textarea></label>
@@ -108,6 +109,45 @@
    console.warn('Vestiaire LINK send failed',err?.message);
   }finally{busy=false;}
  }
+ async function sendHub(){
+  if(busy||!connected())throw Error("Jumelage Vestiaire/Nexus nécessaire.");
+  if(!window.LinkHubBus)throw Error("Module de transport LINK indisponible.");
+  busy=true;
+  try{
+   const items=catalog(api.state()),fp=await fingerprint(items.pages),link=current();
+   if(fp===link.hubLastFingerprint){api.toast("Catalogue LINK déjà à jour.");return}
+   const pending=link.hubPending;
+   const fresh=!pending||pending.fingerprint!==fp||pending.totalPages!==items.pages.length;
+   const meta=fresh?{
+    revision:Math.max(Number(link.revision)||0,Number(link.hubRevision)||0,Number(pending?.revision)||0)+1,
+    batchId:crypto.randomUUID(),sharedAt:new Date().toISOString(),
+    fingerprint:fp,totalPages:items.pages.length,nextIndex:0
+   }:pending;
+   if(meta.revision>1000000)throw Error("Limite de révisions atteinte.");
+   if(fresh)await api.savePrefs({nexusLink:{...current(),hubPending:meta}});
+   let sent=0;
+   for(let i=meta.nextIndex;i<Math.min(meta.nextIndex+12,items.pages.length);i++){
+    const payload={type:"vestiaire.catalog.page.v2",sourceApp:"vestiaire",
+     revision:meta.revision,batchId:meta.batchId,pageIndex:i,
+     pageCount:items.pages.length,total:items.total,sharedAt:meta.sharedAt,
+     looks:items.pages[i]};
+    await window.LinkHubBus.publish({pair:link.pair,from:"vestiaire",to:"nexus",
+     contractId:"vestiaire-nexus",scope:"outfit_catalog",
+     entityId:"vestiaire:catalog:v2:page:"+i,revision:meta.revision,
+     schemaVersion:"vestiaire.catalog.page.v2",payload});
+    sent++;
+    const progressed={...meta,nextIndex:i+1};
+    await api.savePrefs({nexusLink:{...current(),hubPending:progressed}});
+   }
+   const complete=meta.nextIndex+sent>=items.pages.length;
+   if(complete){
+    await api.savePrefs({nexusLink:{...current(),hubPending:null,hubRevision:meta.revision,
+     hubLastFingerprint:fp,hubLastSentAt:new Date().toISOString()}});
+   }
+   api.toast(sent+" lot(s) chiffré(s) envoyés à LINK. "+(complete?
+    "Ouvre Nexus pour les recevoir.":"Rappuie pour les lots suivants."));
+  }finally{busy=false}
+ }
  async function toggle(enabled){
   if(!connected())return;
   await api.savePrefs({nexusLink:{...current(),autoShare:enabled}});
@@ -141,6 +181,7 @@
   }
   if(kind==='vestiaire-nexus-connect'){await connect();return true;}
   if(kind==='vestiaire-nexus-send'){await send(true);return true;}
+  if(kind==='vestiaire-hub-send'){try{await sendHub()}catch(e){api.toast("LINK : "+String(e.message||e).slice(0,90))}return true;}
   if(kind==='vestiaire-nexus-revoke'){await revoke();return true;}
   return false;
  }
