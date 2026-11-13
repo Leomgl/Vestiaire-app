@@ -65,7 +65,7 @@ test('PWA cache, JSX-free controls and encrypted NEXUS contract remain compatibl
  assert.match(app,/studioPickerOpen=false/);
  assert.match(html,/app\.js\?v=0711/);
  assert.match(html,/v02\.css\?v=0710/);
- assert.match(sw,/vestiaire-v07\.4/);
+ assert.match(sw,/vestiaire-v07\.5/);
  assert.match(sw,/app\.js\?v=0711/);
  assert.match(sw,/v02\.css\?v=0710/);
  assert.match(edge,/\/v02\.css/);

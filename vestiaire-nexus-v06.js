@@ -202,7 +202,7 @@
  }
  function attach(value){
   api=value;
-  if(!lifecycleBound&&typeof window!=="undefined"&&typeof document!=="undefined"){
+  if(!lifecycleBound&&typeof window!=="undefined"&&typeof document!=="undefined"&&typeof window.addEventListener==="function"&&typeof document.addEventListener==="function"){
    lifecycleBound=true;
    window.addEventListener("online",()=>schedule(true));
    window.addEventListener("focus",()=>schedule(false));
