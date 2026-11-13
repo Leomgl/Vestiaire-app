@@ -180,8 +180,9 @@
     const result=await sendHub({quiet:true});
     if(result&&!result.complete)schedule(true);
    }catch(error){
-    console.warn("Vestiaire LINK Hub différé",error?.message||error);
-    await send(false);
+    // Do not silently duplicate any outfit catalogue on the old relay.
+    // The historic "Envoyer mes tenues" button stays available as a rescue.
+    console.warn("Vestiaire LINK Hub différé (aucun repli automatique)",error?.message||error);
    }
   },900);
  }
