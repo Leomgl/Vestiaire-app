@@ -15,6 +15,7 @@ const TYPES={
  '/nexus-link-core.js':'text/javascript; charset=utf-8',
  '/vestiaire-nexus-v06.js':'text/javascript; charset=utf-8',
  '/link-hub-onboard.js':'text/javascript; charset=utf-8',
+ '/link-hub-bus.js':'text/javascript; charset=utf-8',
  '/vestiaire-nexus-v06.css':'text/css; charset=utf-8',
  '/sw.js':'text/javascript; charset=utf-8',
  '/manifest.webmanifest':'application/manifest+json; charset=utf-8',
