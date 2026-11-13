@@ -173,8 +173,10 @@
   if(kind==='vestiaire-hub-enroll'){
    try{
     if(!window.LinkHubOnboard)throw Error("MODULE_LINK_INDISPONIBLE");
-    const value=document.getElementById("vestiaire-hub-code")?.value||"";
+    const input=document.getElementById("vestiaire-hub-code");
+    const value=input?.value||"";
     await window.LinkHubOnboard.enroll(value);
+    if(input)input.value=""; // Never leave a consumed, single-use invitation visible.
     api?.toast?.("Vestiaire inscrit dans LINK ; les tenues ne sont pas envoyées automatiquement.");
    }catch(e){api?.toast?.("LINK : "+String(e.message||e).slice(0,100))}
    return true;
