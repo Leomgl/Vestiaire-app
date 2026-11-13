@@ -70,8 +70,8 @@ test('only valid Vestiaire pairing is accepted and source app sends no calendar 
  const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
  const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
  assert.match(html,/nexus-link-core\.js\?v=0600/);
- assert.match(html,/vestiaire-nexus-v06\.js\?v=0615/);
- assert.match(sw,/vestiaire-nexus-v06\.js\?v=0615/);
+ assert.match(html,/vestiaire-nexus-v06\.js\?v=0616/);
+ assert.match(sw,/vestiaire-nexus-v06\.js\?v=0616/);
  const edge=fs.readFileSync(path.join(root,'edge-web/worker.js'),'utf8');
  assert.match(edge,/nexus-app-api\.q9pfwtztsc\.workers\.dev/);
  assert.match(edge,/\/vestiaire-nexus-v06\.js/);
@@ -109,6 +109,6 @@ test('automatic sharing prefers LINK Hub and only wakes on lifecycle/local chang
  assert.match(s,/window\.addEventListener\("focus"/);
  assert.match(s,/visibilitychange/);
  assert.match(s,/lastHubAttempt<30000/);
- assert.match(html,/vestiaire-nexus-v06\.js\?v=0615/);
- assert.match(sw,/vestiaire-v07\.6-link-settings/);
+ assert.match(html,/vestiaire-nexus-v06\.js\?v=0616/);
+ assert.match(sw,/vestiaire-v07\.7-link-only-auto/);
 });
