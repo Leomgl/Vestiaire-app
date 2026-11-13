@@ -560,7 +560,7 @@ document.addEventListener('click',async e=>{
   const selectedLayer=e.target.closest('[data-layer]');if(selectedLayer){activeLayerKey=selectedLayer.dataset.layer;render();return}
    const pick=e.target.closest('[data-pick]');if(pick){place(studioSlot,pick.dataset.pick);return}
   const target=e.target.closest('[data-act]');if(!target)return;const action=target.dataset.act;
-  if(action.startsWith('vestiaire-nexus-')){await window.VestiaireNexus?.action?.(action);return;}
+  if(action.startsWith('vestiaire-nexus-')||action.startsWith('vestiaire-hub-')){await window.VestiaireNexus?.action?.(action);return;}
   if(action==='confirm-piece'){studioSelectionConfirmed=true;render();toast('Pièce validée. Enregistre la tenue pour conserver les modifications.');return;}
   if(action==='open-studio-picker'||action==='swap-piece'){studioPickerOpen=true;render();requestAnimationFrame(()=>$('studio-picker-search')?.focus());return;}
   if(action==='close-studio-picker'){studioPickerOpen=false;render();return;}
