@@ -14,6 +14,6 @@ test('Vestiaire manually sends only paginated encrypted look summaries to LINK',
  assert.match(bus,/await putRecord\(db,"envelopes",key,record\)/);
  assert.doesNotMatch(bus,/setInterval\s*\(/);
  assert.match(text('index.html'),/link-hub-bus\.js\?v=0612/);
- assert.match(text('sw.js'),/vestiaire-v07\.3/);
+ assert.match(text('sw.js'),/vestiaire-v07\.4/);
  assert.match(text('edge-web/worker.js'),/link-hub-bus\.js/);
 });
