@@ -98,3 +98,17 @@ test('LINK enrollment click is routed, consumes invite on success and keeps it o
   assert.match(notice,/INVITATION_REFUSÉE/);
  }finally{delete global.document}
 });
+
+
+test('automatic sharing prefers LINK Hub and only wakes on lifecycle/local changes',()=>{
+ const s=src('vestiaire-nexus-v06.js'),html=src('index.html'),sw=src('sw.js');
+ assert.match(s,/async function sendHub\(\{quiet=false\}=\{\}\)/);
+ assert.match(s,/function schedule\(force=false\)/);
+ assert.match(s,/sendHub\(\{quiet:true\}\)/);
+ assert.match(s,/window\.addEventListener\("online"/);
+ assert.match(s,/window\.addEventListener\("focus"/);
+ assert.match(s,/visibilitychange/);
+ assert.match(s,/lastHubAttempt<30000/);
+ assert.match(html,/vestiaire-nexus-v06\.js\?v=0614/);
+ assert.match(sw,/vestiaire-v07\.5/);
+});

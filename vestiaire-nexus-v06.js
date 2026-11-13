@@ -1,6 +1,6 @@
 (function vestiaireNexusV06(){
  'use strict';
- let api=null,busy=false,timer=null;
+ let api=null,busy=false,timer=null,lifecycleBound=false,lastHubAttempt=0;
  const MAX_LOOKS=24;
  const MAX_PAYLOAD=5500;
  const MAX_PAGES=200; // Relay supports up to 250 pending encrypted events per connection.
@@ -109,13 +109,13 @@
    console.warn('Vestiaire LINK send failed',err?.message);
   }finally{busy=false;}
  }
- async function sendHub(){
+ async function sendHub({quiet=false}={}){
   if(busy||!connected())throw Error("Jumelage Vestiaire/Nexus nécessaire.");
   if(!window.LinkHubBus)throw Error("Module de transport LINK indisponible.");
   busy=true;
   try{
    const items=catalog(api.state()),fp=await fingerprint(items.pages),link=current();
-   if(fp===link.hubLastFingerprint){api.toast("Catalogue LINK déjà à jour.");return}
+   if(fp===link.hubLastFingerprint){if(!quiet)api.toast("Catalogue LINK déjà à jour.");return {sent:0,complete:true,unchanged:true}}
    const pending=link.hubPending;
    const fresh=!pending||pending.fingerprint!==fp||pending.totalPages!==items.pages.length;
    const meta=fresh?{
@@ -144,8 +144,9 @@
     await api.savePrefs({nexusLink:{...current(),hubPending:null,hubRevision:meta.revision,
      hubLastFingerprint:fp,hubLastSentAt:new Date().toISOString()}});
    }
-   api.toast(sent+" lot(s) chiffré(s) envoyés à LINK. "+(complete?
-    "Ouvre Nexus pour les recevoir.":"Rappuie pour les lots suivants."));
+   if(!quiet)api.toast(sent+" lot(s) chiffré(s) envoyés à LINK. "+(complete?
+    "Nexus les recevra automatiquement à sa prochaine ouverture.":"Les lots suivants partiront automatiquement."));
+   return {sent,complete,remaining:Math.max(0,items.pages.length-(meta.nextIndex+sent))};
   }finally{busy=false}
  }
  async function toggle(enabled){
@@ -164,10 +165,22 @@
   }catch(err){api.toast('Révocation impossible : '+String(err?.message||err).slice(0,80))}
   finally{busy=false;}
  }
- function schedule(){
+ function schedule(force=false){
   if(!connected()||!current().autoShare)return;
+  if(typeof navigator!=="undefined"&&navigator.onLine===false)return;
+  if(typeof document!=="undefined"&&document.visibilityState==="hidden")return;
+  const now=Date.now();if(!force&&now-lastHubAttempt<30000)return;
   clear();
-  timer=setTimeout(()=>{timer=null;void send();},2200);
+  timer=setTimeout(async()=>{
+   timer=null;lastHubAttempt=Date.now();
+   try{
+    const result=await sendHub({quiet:true});
+    if(result&&!result.complete)schedule(true);
+   }catch(error){
+    console.warn("Vestiaire LINK Hub différé",error?.message||error);
+    await send(false);
+   }
+  },900);
  }
  async function action(kind){
   if(kind==='vestiaire-hub-enroll'){
@@ -187,7 +200,16 @@
   if(kind==='vestiaire-nexus-revoke'){await revoke();return true;}
   return false;
  }
- function attach(value){api=value; if(connected())schedule();}
- window.VestiaireNexus=Object.freeze({attach,settingsCard,action,toggle,schedule,catalog,summarize,send});
+ function attach(value){
+  api=value;
+  if(!lifecycleBound&&typeof window!=="undefined"&&typeof document!=="undefined"){
+   lifecycleBound=true;
+   window.addEventListener("online",()=>schedule(true));
+   window.addEventListener("focus",()=>schedule(false));
+   document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")schedule(false)});
+  }
+  if(connected())schedule(true);
+ }
+ window.VestiaireNexus=Object.freeze({attach,settingsCard,action,toggle,schedule,catalog,summarize,send,sendHub});
  if(window.VESTIAIRE_LINK_API)attach(window.VESTIAIRE_LINK_API);
 })();
