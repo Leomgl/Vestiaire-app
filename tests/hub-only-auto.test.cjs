@@ -7,8 +7,8 @@ test('Vestiaire ne retourne jamais automatiquement vers le relais historique',()
  const auto=code.slice(from,to);
  assert.match(auto,/await sendHub\(\{quiet:true\}\)/);
  assert.doesNotMatch(auto,/await send\(/,'pas de publication automatique historique');
- assert.match(code,/data-act="vestiaire-nexus-send"/,'action manuelle historique préservée');
- assert.match(code,/await CORE\(\)\.publish\(link\.pair/,'mécanisme de secours conservé');
- assert.match(src('index.html'),/vestiaire-nexus-v06\.js\?v=0616/);
- assert.match(src('sw.js'),/vestiaire-v07\.7-link-only-auto/);
+ assert.doesNotMatch(code,/data-act="vestiaire-nexus-send"/,'envoi historique masqué');
+ assert.match(code,/data-act="vestiaire-hub-send"/,'action LINK visible');
+ assert.match(src('index.html'),/vestiaire-nexus-v06\.js\?v=0617/);
+ assert.match(src('sw.js'),/vestiaire-v07\.8-hub-only/);
 });
