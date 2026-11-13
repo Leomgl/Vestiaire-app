@@ -13,6 +13,6 @@ test('LINK premier, Vestiaire garde les contrôles historiques et protège le dr
  assert.match(ui,/data-act="vestiaire-nexus-revoke"/);
  assert.match(ui,/id="vestiaire-nexus-auto"/);
  assert.match(html,/app\.js\?v=0712/);
- assert.match(html,/vestiaire-nexus-v06\.js\?v=0615/);
- assert.match(sw,/vestiaire-v07\.6-link-settings/);
+ assert.match(html,/vestiaire-nexus-v06\.js\?v=0616/);
+ assert.match(sw,/vestiaire-v07\.7-link-only-auto/);
 });
