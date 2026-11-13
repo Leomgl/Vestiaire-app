@@ -14,6 +14,7 @@ const TYPES={
  '/fit-engine.js':'text/javascript; charset=utf-8',
  '/nexus-link-core.js':'text/javascript; charset=utf-8',
  '/vestiaire-nexus-v06.js':'text/javascript; charset=utf-8',
+ '/link-hub-onboard.js':'text/javascript; charset=utf-8',
  '/vestiaire-nexus-v06.css':'text/css; charset=utf-8',
  '/sw.js':'text/javascript; charset=utf-8',
  '/manifest.webmanifest':'application/manifest+json; charset=utf-8',
@@ -22,7 +23,7 @@ const TYPES={
  '/icons/icon-512.png':'image/png',
  '/icons/apple-touch-icon.png':'image/png'
 };
-const CSP="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' https://mcp.fits-app.com https://vestiaire-fits-bridge.q9pfwtztsc.workers.dev https://nexus-app-api.q9pfwtztsc.workers.dev; worker-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+const CSP="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self' https://mcp.fits-app.com https://vestiaire-fits-bridge.q9pfwtztsc.workers.dev https://nexus-app-api.q9pfwtztsc.workers.dev https://link-app.q9pfwtztsc.workers.dev; worker-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 export default {
  async fetch(request){
   const url=new URL(request.url);
