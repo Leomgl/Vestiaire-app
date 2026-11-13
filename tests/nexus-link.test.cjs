@@ -70,8 +70,8 @@ test('only valid Vestiaire pairing is accepted and source app sends no calendar 
  const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
  const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
  assert.match(html,/nexus-link-core\.js\?v=0600/);
- assert.match(html,/vestiaire-nexus-v06\.js\?v=0610/);
- assert.match(sw,/vestiaire-nexus-v06\.js\?v=0610/);
+ assert.match(html,/vestiaire-nexus-v06\.js\?v=0611/);
+ assert.match(sw,/vestiaire-nexus-v06\.js\?v=0611/);
  const edge=fs.readFileSync(path.join(root,'edge-web/worker.js'),'utf8');
  assert.match(edge,/nexus-app-api\.q9pfwtztsc\.workers\.dev/);
  assert.match(edge,/\/vestiaire-nexus-v06\.js/);
